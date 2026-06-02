@@ -57,6 +57,10 @@ public class User {
     private String fcmToken;
 
     @Builder.Default
+    private boolean acceptedTerms = false;
+    private Instant acceptedTermsAt;
+
+    @Builder.Default
     private Instant createdAt = Instant.now();
 
     private Instant updatedAt;

@@ -32,6 +32,10 @@ public class ClubJoinRequest {
     @Builder.Default
     private String status = "PENDING"; // "PENDING", "ACCEPTED", "REJECTED"
 
+    private String paymentScreenshot;
+    private String utr;
+    private Double amountPaid;
+
     @Builder.Default
     private Instant requestedAt = Instant.now();
 }

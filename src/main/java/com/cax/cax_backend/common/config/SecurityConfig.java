@@ -33,6 +33,8 @@ public class SecurityConfig {
                                 "/api/auth/generate-test-token",
                                 "/api/auth/qr/**",
                                 "/api/version/**",
+                                "/api/colleges",
+                                "/api/newsletter/subscribe",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"

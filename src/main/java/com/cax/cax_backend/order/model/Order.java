@@ -48,6 +48,22 @@ public class Order {
     private String cancelReason;
     private String cancelledBy;
 
+    // Contact Info Sharing
+    private String buyerSharedEmail;
+    private String sellerSharedEmail;
+    private String buyerSharedPhone;
+    private String sellerSharedPhone;
+    @Builder.Default
+    private boolean callRequestPending = false;
+    @Builder.Default
+    private boolean buyerSkippedPhoneShare = false;
+    @Builder.Default
+    private boolean sellerSkippedPhoneShare = false;
+
+    // Cooldowns
+    private Instant callNextAvailableAt;
+    private Instant updateNextAvailableAt;
+
     // Rating
     private Integer buyerRating;
     private String buyerReview;

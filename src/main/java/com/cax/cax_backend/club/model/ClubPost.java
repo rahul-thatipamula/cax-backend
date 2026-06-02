@@ -49,6 +49,25 @@ public class ClubPost {
 
     private Instant updatedAt;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("isPoll")
+    private boolean isPoll;
+    private String pollQuestion;
+
+    @Builder.Default
+    private List<PollOption> pollOptions = new ArrayList<>();
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PollOption {
+        private String optionId;
+        private String text;
+
+        @Builder.Default
+        private List<String> votes = new ArrayList<>(); // list of user IDs
+    }
+
     @Data
     @Builder
     @NoArgsConstructor

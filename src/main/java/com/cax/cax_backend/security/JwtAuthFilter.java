@@ -45,6 +45,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             Claims claims = jwtUtil.verifyToken(token);
 
             String userId = claims.get("userId", String.class);
+            if (userId == null) {
+                userId = claims.getSubject();
+            }
             String role = claims.get("role", String.class);
             Boolean isAdmin = claims.get("isAdmin", Boolean.class);
 

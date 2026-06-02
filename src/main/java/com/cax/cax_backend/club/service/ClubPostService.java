@@ -32,12 +32,25 @@ public class ClubPostService {
     private final UserService userService;
     private final R2StorageService r2StorageService;
 
-    public ClubPost createPost(String userId, String clubId, String caption, List<String> images) {
+    public ClubPost createPost(String userId, String clubId, String caption, List<String> images, boolean isPoll, String pollQuestion, List<String> pollOptions) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Club", clubId));
 
         if (!canManagePosts(userId, clubId)) {
             throw new BusinessException.BadRequestException("Unauthorized: You do not have permission to manage posts for this club.");
+        }
+
+        List<ClubPost.PollOption> options = new ArrayList<>();
+        if (isPoll && pollOptions != null) {
+            for (String optText : pollOptions) {
+                if (optText != null && !optText.trim().isEmpty()) {
+                    options.add(ClubPost.PollOption.builder()
+                            .optionId(UUID.randomUUID().toString())
+                            .text(optText.trim())
+                            .votes(new ArrayList<>())
+                            .build());
+                }
+            }
         }
 
         ClubPost post = ClubPost.builder()
@@ -50,9 +63,46 @@ public class ClubPostService {
                 .images(images != null ? images : new ArrayList<>())
                 .likes(new ArrayList<>())
                 .comments(new ArrayList<>())
+                .isPoll(isPoll)
+                .pollQuestion(pollQuestion)
+                .pollOptions(options)
                 .createdAt(Instant.now())
                 .build();
 
+        return clubPostRepository.save(post);
+    }
+
+    public ClubPost votePoll(String userId, String postId, String optionId) {
+        ClubPost post = clubPostRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("ClubPost", postId));
+
+        if (!post.isPoll()) {
+            throw new BusinessException.BadRequestException("This post is not a poll.");
+        }
+
+        if (post.getPollOptions() == null) {
+            post.setPollOptions(new ArrayList<>());
+        }
+
+        boolean optionFound = false;
+        for (ClubPost.PollOption option : post.getPollOptions()) {
+            if (option.getVotes() == null) {
+                option.setVotes(new ArrayList<>());
+            }
+            // Remove user's vote if they already voted for another option
+            option.getVotes().remove(userId);
+            
+            if (option.getOptionId().equals(optionId)) {
+                option.getVotes().add(userId);
+                optionFound = true;
+            }
+        }
+
+        if (!optionFound) {
+            throw new BusinessException.ResourceNotFoundException("PollOption", optionId);
+        }
+
+        post.setUpdatedAt(Instant.now());
         return clubPostRepository.save(post);
     }
 

@@ -27,8 +27,12 @@ public class AuthController {
         if (token == null || token.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Missing or invalid token"));
         }
+        boolean acceptedTerms = Boolean.parseBoolean(body.get("acceptedTerms"));
+        if (!acceptedTerms) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Acceptance of the Terms of Service and Privacy Policy is required to log in."));
+        }
         String idToken = token.replaceFirst("(?i)^Bearer\\s+", "").trim();
-        Map<String, Object> result = authService.handleGoogleLoginOrSignup(idToken);
+        Map<String, Object> result = authService.handleGoogleLoginOrSignup(idToken, acceptedTerms);
         return ResponseEntity.ok(result);
     }
 

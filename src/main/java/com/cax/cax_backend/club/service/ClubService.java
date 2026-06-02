@@ -63,7 +63,7 @@ public class ClubService {
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Club", clubId));
     }
 
-    public Map<String, Object> joinClub(String userId, String clubId) {
+    public Map<String, Object> joinClub(String userId, String clubId, String paymentScreenshot, String utr) {
         Club club = getClubById(clubId);
         User user = userService.getUserByUserId(userId);
 
@@ -82,7 +82,11 @@ public class ClubService {
 
         Map<String, Object> result = new HashMap<>();
 
-        if (club.isApprovalRequired()) {
+        if (club.isPaid()) {
+            if (paymentScreenshot == null || paymentScreenshot.isBlank() || utr == null || utr.isBlank()) {
+                throw new BusinessException.BadRequestException("Payment screenshot and UTR are required for paid clubs.");
+            }
+
             Optional<ClubJoinRequest> existingRequest = clubJoinRequestRepository.findByClubIdAndUserIdAndStatus(clubId, userId, "PENDING");
             if (existingRequest.isPresent()) {
                 throw new BusinessException.BadRequestException("Your join request is already pending.");
@@ -95,6 +99,29 @@ public class ClubService {
                     .email(user.getEmail())
                     .picture(user.getPicture())
                     .status("PENDING")
+                    .paymentScreenshot(paymentScreenshot)
+                    .utr(utr)
+                    .amountPaid(club.getPrice())
+                    .requestedAt(Instant.now())
+                    .build();
+
+            clubJoinRequestRepository.save(joinRequest);
+            result.put("status", "PENDING");
+            result.put("message", "Join request submitted with payment details, awaiting approval.");
+        } else if (club.isApprovalRequired()) {
+            Optional<ClubJoinRequest> existingRequest = clubJoinRequestRepository.findByClubIdAndUserIdAndStatus(clubId, userId, "PENDING");
+            if (existingRequest.isPresent()) {
+                throw new BusinessException.BadRequestException("Your join request is already pending.");
+            }
+
+            ClubJoinRequest joinRequest = ClubJoinRequest.builder()
+                    .clubId(clubId)
+                    .userId(userId)
+                    .name(user.getName())
+                    .email(user.getEmail())
+                    .picture(user.getPicture())
+                    .status("PENDING")
+                    .amountPaid(0.0)
                     .requestedAt(Instant.now())
                     .build();
 
@@ -260,11 +287,15 @@ public class ClubService {
         }
     }
 
-    public void updateClubSettings(String leaderUserId, String clubId, boolean isApprovalRequired) {
+    public void updateClubSettings(String leaderUserId, String clubId, boolean isApprovalRequired, boolean isPaid, Double price, String upiId, String qrCodeUrl) {
         Club club = getClubById(clubId);
         verifyLeader(leaderUserId, club);
 
         club.setApprovalRequired(isApprovalRequired);
+        club.setPaid(isPaid);
+        club.setPrice(price);
+        club.setUpiId(upiId);
+        club.setQrCodeUrl(qrCodeUrl);
         club.setUpdatedAt(Instant.now());
         clubRepository.save(club);
     }
@@ -373,12 +404,6 @@ public class ClubService {
         if (userId.equals(club.getPresidentId()) || userId.equals(club.getVicePresidentId())) {
             return;
         }
-        try {
-            User user = userService.getUserByUserId(userId);
-            if (user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified())) {
-                return;
-            }
-        } catch (Exception e) {}
         throw new BusinessException.BadRequestException("Unauthorized: Only the President or Vice President can perform this action.");
     }
 

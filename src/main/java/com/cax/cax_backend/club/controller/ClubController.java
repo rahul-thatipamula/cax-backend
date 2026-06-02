@@ -49,6 +49,14 @@ public class ClubController {
         private String coverPhoto;
     }
 
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class JoinClubRequest {
+        private String paymentScreenshot;
+        private String utr;
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<Club>> createClub(Authentication auth, @RequestBody Club clubData) {
         String userId = (String) auth.getPrincipal();
@@ -95,6 +103,12 @@ public class ClubController {
     public ResponseEntity<ApiResponse<ClubDetailResponse>> getClubDetails(Authentication auth, @PathVariable String clubId) {
         String userId = (String) auth.getPrincipal();
         Club club = clubService.getClubById(clubId);
+        User user = userService.getUserByUserId(userId);
+        
+        boolean isSystemAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
+        if (!isSystemAdmin && user.getCollegeDetails() != null && !club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You cannot access a club from another college.");
+        }
         
         Optional<ClubMember> membership = clubService.getClubMembers(clubId).stream()
                 .filter(m -> userId.equals(m.getUserId()))
@@ -116,7 +130,6 @@ public class ClubController {
         } else {
             // Check system-level bypasses for guests
             try {
-                User user = userService.getUserByUserId(userId);
                 if (user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN || (user.getRole() == com.cax.cax_backend.common.enums.UserRole.SUPER_STUDENT && user.isIdVerified())) {
                     permissions = List.of("manage_events", "manage_members", "manage_settings", "manage_posts");
                 }
@@ -134,9 +147,18 @@ public class ClubController {
     }
 
     @PostMapping("/{clubId}/join")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> joinClub(Authentication auth, @PathVariable String clubId) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> joinClub(
+            Authentication auth, 
+            @PathVariable String clubId,
+            @RequestBody(required = false) JoinClubRequest joinRequestDto) {
         String userId = (String) auth.getPrincipal();
-        Map<String, Object> joinResult = clubService.joinClub(userId, clubId);
+        String paymentScreenshot = null;
+        String utr = null;
+        if (joinRequestDto != null) {
+            paymentScreenshot = joinRequestDto.getPaymentScreenshot();
+            utr = joinRequestDto.getUtr();
+        }
+        Map<String, Object> joinResult = clubService.joinClub(userId, clubId, paymentScreenshot, utr);
         return ResponseEntity.ok(ApiResponse.success("Success", joinResult));
     }
 
@@ -172,9 +194,16 @@ public class ClubController {
     }
 
     @PutMapping("/{clubId}/settings")
-    public ResponseEntity<ApiResponse<Void>> updateSettings(Authentication auth, @PathVariable String clubId, @RequestParam boolean isApprovalRequired) {
+    public ResponseEntity<ApiResponse<Void>> updateSettings(
+            Authentication auth, 
+            @PathVariable String clubId, 
+            @RequestParam boolean isApprovalRequired,
+            @RequestParam(required = false, defaultValue = "false") boolean isPaid,
+            @RequestParam(required = false, defaultValue = "0.0") Double price,
+            @RequestParam(required = false) String upiId,
+            @RequestParam(required = false) String qrCodeUrl) {
         String leaderUserId = (String) auth.getPrincipal();
-        clubService.updateClubSettings(leaderUserId, clubId, isApprovalRequired);
+        clubService.updateClubSettings(leaderUserId, clubId, isApprovalRequired, isPaid, price, upiId, qrCodeUrl);
         return ResponseEntity.ok(ApiResponse.success("Settings updated successfully"));
     }
 

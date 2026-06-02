@@ -40,6 +40,15 @@ public class Club {
     private boolean allowJoining = true;
 
     @Builder.Default
+    private boolean isPaid = false;
+
+    @Builder.Default
+    private Double price = 0.0;
+
+    private String upiId;
+    private String qrCodeUrl;
+
+    @Builder.Default
     private List<ClubRole> customRoles = List.of(
         new ClubRole("Lead"),
         new ClubRole("Manager"),

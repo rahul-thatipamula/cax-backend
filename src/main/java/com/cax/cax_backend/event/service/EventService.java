@@ -112,6 +112,13 @@ public class EventService {
 
     public Map<String, Object> getEventDetailForUser(String userId, String eventId) {
         Event event = getEventById(eventId);
+        Club club = clubService.getClubById(event.getClubId());
+        User user = userService.getUserByUserId(userId);
+        
+        boolean isSystemAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
+        if (!isSystemAdmin && user.getCollegeDetails() != null && !club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+            throw new BusinessException.BadRequestException("You cannot access an event from another college.");
+        }
 
         // Check participant status
         Optional<EventParticipant> participant = eventParticipantRepository.findByEventIdAndUserId(eventId, userId);

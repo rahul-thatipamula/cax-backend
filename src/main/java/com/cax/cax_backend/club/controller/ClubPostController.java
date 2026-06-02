@@ -35,6 +35,10 @@ public class ClubPostController {
     public static class CreatePostRequest {
         private String caption;
         private List<String> images;
+        @com.fasterxml.jackson.annotation.JsonProperty("isPoll")
+        private boolean isPoll;
+        private String pollQuestion;
+        private List<String> pollOptions;
     }
 
     @Data
@@ -57,7 +61,7 @@ public class ClubPostController {
 
         if (!clubPostService.canManagePosts(userId, clubId)) {
             throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException(
-                    "Unauthorized: You do not have permission to manage posts for this club.");
+                     "Unauthorized: You do not have permission to manage posts for this club.");
         }
 
         if (files == null || files.isEmpty()) {
@@ -134,8 +138,26 @@ public class ClubPostController {
             @PathVariable String clubId,
             @RequestBody CreatePostRequest request) {
         String userId = (String) auth.getPrincipal();
-        ClubPost post = clubPostService.createPost(userId, clubId, request.getCaption(), request.getImages());
+        ClubPost post = clubPostService.createPost(
+                userId,
+                clubId,
+                request.getCaption(),
+                request.getImages(),
+                request.isPoll(),
+                request.getPollQuestion(),
+                request.getPollOptions()
+        );
         return ResponseEntity.ok(ApiResponse.created("Post created successfully", post));
+    }
+
+    @PostMapping("/posts/{postId}/vote")
+    public ResponseEntity<ApiResponse<ClubPost>> votePoll(
+            Authentication auth,
+            @PathVariable String postId,
+            @RequestParam String optionId) {
+        String userId = (String) auth.getPrincipal();
+        ClubPost post = clubPostService.votePoll(userId, postId, optionId);
+        return ResponseEntity.ok(ApiResponse.success("Vote registered successfully", post));
     }
 
     @DeleteMapping("/posts/{postId}")

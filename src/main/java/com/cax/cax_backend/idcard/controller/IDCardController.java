@@ -6,6 +6,8 @@ import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.idcard.model.IDCard;
 import com.cax.cax_backend.idcard.repository.IDCardRepository;
 import com.cax.cax_backend.user.repository.UserRepository;
+import com.cax.cax_backend.idcard.event.IDCardStatusChangedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,6 +25,7 @@ public class IDCardController {
     private final IDCardRepository repo;
     private final R2StorageService r2StorageService;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @PostMapping(value = "/idcard/upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<IDCard>> uploadIDCard(
@@ -150,6 +153,7 @@ public class IDCardController {
         userRepository.findByUserId(userId).ifPresent(u -> {
             u.setIdVerified(true);
             userRepository.save(u);
+            eventPublisher.publishEvent(new IDCardStatusChangedEvent(this, u, savedCard));
         });
         return ResponseEntity.ok(ApiResponse.success(savedCard));
     }
@@ -164,6 +168,7 @@ public class IDCardController {
         userRepository.findByUserId(userId).ifPresent(u -> {
             u.setIdVerified(true);
             userRepository.save(u);
+            eventPublisher.publishEvent(new IDCardStatusChangedEvent(this, u, savedCard));
         });
         return ResponseEntity.ok(ApiResponse.success(savedCard));
     }
@@ -177,6 +182,7 @@ public class IDCardController {
         userRepository.findByUserId(userId).ifPresent(u -> {
             u.setIdVerified(false);
             userRepository.save(u);
+            eventPublisher.publishEvent(new IDCardStatusChangedEvent(this, u, savedCard));
         });
         return ResponseEntity.ok(ApiResponse.success(savedCard));
     }
