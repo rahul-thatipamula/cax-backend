@@ -13,4 +13,5 @@ public interface ClubJoinRequestRepository extends MongoRepository<ClubJoinReque
     List<ClubJoinRequest> findByClubIdAndStatus(String clubId, String status);
     Optional<ClubJoinRequest> findByClubIdAndUserId(String clubId, String userId);
     Optional<ClubJoinRequest> findByClubIdAndUserIdAndStatus(String clubId, String userId, String status);
+    List<ClubJoinRequest> findByUserId(String userId);
 }

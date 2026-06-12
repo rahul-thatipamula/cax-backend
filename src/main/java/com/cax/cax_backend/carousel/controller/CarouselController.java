@@ -6,6 +6,8 @@ import com.cax.cax_backend.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -16,6 +18,7 @@ import java.util.List;
 public class CarouselController {
     private final CarouselRepository repo;
 
+    @Cacheable(value = "carousels", key = "#collegeId != null ? #collegeId : 'default'")
     @GetMapping
     public ResponseEntity<ApiResponse<List<Carousel>>> getCarousels(@RequestParam(required = false) String collegeId) {
         List<Carousel> items;
@@ -29,6 +32,7 @@ public class CarouselController {
         return ResponseEntity.ok(ApiResponse.success(items));
     }
 
+    @CacheEvict(value = "carousels", allEntries = true)
     @PostMapping
     public ResponseEntity<ApiResponse<Carousel>> create(@RequestBody Carousel body) {
         return ResponseEntity.ok(ApiResponse.created("Carousel created", repo.save(body)));
@@ -55,6 +59,7 @@ public class CarouselController {
         return ResponseEntity.ok(ApiResponse.success(items));
     }
 
+    @CacheEvict(value = "carousels", allEntries = true)
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Carousel>> update(@PathVariable String id, @RequestBody Carousel body) {
         Carousel carousel = repo.findById(id).orElseThrow();
@@ -62,7 +67,9 @@ public class CarouselController {
         carousel.setDescription(body.getDescription());
         carousel.setImageUrl(body.getImageUrl());
         carousel.setActionLink(body.getActionLink());
+        carousel.setActionUrl(body.getActionLink());
         carousel.setType(body.getType());
+        carousel.setDesignType(body.getDesignType());
         carousel.setDisplayOrder(body.getDisplayOrder());
         carousel.setActive(body.isActive());
         carousel.setCollegeId(body.getCollegeId());
@@ -72,12 +79,14 @@ public class CarouselController {
         return ResponseEntity.ok(ApiResponse.success(repo.save(carousel)));
     }
 
+    @CacheEvict(value = "carousels", allEntries = true)
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable String id) {
         repo.deleteById(id);
         return ResponseEntity.ok(ApiResponse.success("Carousel deleted"));
     }
 
+    @CacheEvict(value = "carousels", allEntries = true)
     @PutMapping("/{id}/toggle")
     public ResponseEntity<ApiResponse<Carousel>> toggleActive(@PathVariable String id) {
         Carousel carousel = repo.findById(id).orElseThrow();

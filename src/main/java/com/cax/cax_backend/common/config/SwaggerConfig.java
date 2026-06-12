@@ -16,7 +16,7 @@ public class SwaggerConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("CAX Backend API")
-                        .description("CAX Platform - Digital Wallet & Campus E-Commerce API")
+                        .description("CAX Platform - Backend API")
                         .version("2.0"))
                 .addSecurityItem(new SecurityRequirement().addList("Bearer"))
                 .components(new Components()

@@ -45,4 +45,16 @@ public class IDCard {
     private Instant createdAt = Instant.now();
     private Instant updatedAt;
     private Instant verifiedAt;
+
+    @org.springframework.data.annotation.Transient
+    private String caxId;
+
+    @org.springframework.data.annotation.Transient
+    private Instant idCardExpiresAt;
+
+    @org.springframework.data.annotation.Transient
+    private Boolean reVerificationRequested;
+
+    @org.springframework.data.annotation.Transient
+    private Integer rejectionCount;
 }

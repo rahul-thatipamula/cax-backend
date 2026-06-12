@@ -84,17 +84,27 @@ public class ClubPostService {
             post.setPollOptions(new ArrayList<>());
         }
 
+        // Check if user has already voted for this specific option
+        boolean alreadyVotedForThis = false;
+        for (ClubPost.PollOption option : post.getPollOptions()) {
+            if (option.getVotes() != null && option.getOptionId().equals(optionId) && option.getVotes().contains(userId)) {
+                alreadyVotedForThis = true;
+                break;
+            }
+        }
+
         boolean optionFound = false;
         for (ClubPost.PollOption option : post.getPollOptions()) {
             if (option.getVotes() == null) {
                 option.setVotes(new ArrayList<>());
             }
-            // Remove user's vote if they already voted for another option
             option.getVotes().remove(userId);
             
             if (option.getOptionId().equals(optionId)) {
-                option.getVotes().add(userId);
                 optionFound = true;
+                if (!alreadyVotedForThis) {
+                    option.getVotes().add(userId);
+                }
             }
         }
 
@@ -196,8 +206,9 @@ public class ClubPostService {
         return clubPostRepository.save(post);
     }
 
-    public List<ClubPost> getFeed(String collegeId) {
-        return clubPostRepository.findByCollegeIdOrderByCreatedAtDesc(collegeId);
+    public List<ClubPost> getFeed(String collegeId, int page, int size) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return clubPostRepository.findByCollegeIdOrderByCreatedAtDesc(collegeId, pageable);
     }
 
     public List<ClubPost> getClubPosts(String clubId) {

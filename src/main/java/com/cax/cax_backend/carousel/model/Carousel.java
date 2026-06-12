@@ -28,6 +28,7 @@ public class Carousel {
     @JsonAlias("actionUrl")
     private String actionLink;
     private CarouselType type;
+    private String designType;
     private int displayOrder;
 
     @Builder.Default

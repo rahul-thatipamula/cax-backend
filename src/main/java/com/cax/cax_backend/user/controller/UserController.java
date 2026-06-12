@@ -16,6 +16,9 @@ import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
 
+import org.springframework.security.core.Authentication;
+import io.jsonwebtoken.Claims;
+
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -37,6 +40,11 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(userService.getAllUsers()));
     }
 
+    @GetMapping("/superstudents")
+    public ResponseEntity<ApiResponse<List<User>>> getSuperStudents(@RequestParam String collegeId) {
+        return ResponseEntity.ok(ApiResponse.success(userService.getSuperStudentsByCollegeId(collegeId)));
+    }
+
     @GetMapping("/{userId}/profile")
     public ResponseEntity<ApiResponse<User>> getUserProfile(@PathVariable String userId) {
         return ResponseEntity.ok(ApiResponse.success(userService.getUserByUserId(userId)));
@@ -48,5 +56,40 @@ public class UserController {
             @RequestParam("file") MultipartFile file) throws IOException {
         User updatedUser = userService.uploadIDCardImage(userId, file);
         return ResponseEntity.ok(ApiResponse.success(updatedUser));
+    }
+
+    @PostMapping("/{userId}/block")
+    public ResponseEntity<ApiResponse<User>> blockUser(
+            @PathVariable String userId,
+            @RequestParam boolean blocked,
+            @RequestParam(required = false) String reason,
+            Authentication auth) {
+        checkAdmin(auth);
+        return ResponseEntity.ok(ApiResponse.success(userService.blockUser(userId, blocked, reason)));
+    }
+
+    @GetMapping("/premium")
+    public ResponseEntity<ApiResponse<List<User>>> getActivePremiumUsers() {
+        return ResponseEntity.ok(ApiResponse.success(userService.getActivePremiumUsers()));
+    }
+
+    @PostMapping("/{userId}/role")
+    public ResponseEntity<ApiResponse<User>> updateUserRole(
+            @PathVariable String userId,
+            @RequestParam String role,
+            Authentication auth) {
+        checkAdmin(auth);
+        return ResponseEntity.ok(ApiResponse.success(userService.updateUserRole(userId, role)));
+    }
+
+    private void checkAdmin(Authentication auth) {
+        if (auth == null || auth.getCredentials() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.AdminOnlyException();
+        }
+        Claims claims = (Claims) auth.getCredentials();
+        Boolean isAdmin = claims.get("isAdmin", Boolean.class);
+        if (!Boolean.TRUE.equals(isAdmin)) {
+            throw new com.cax.cax_backend.common.exception.AuthException.AdminOnlyException();
+        }
     }
 }

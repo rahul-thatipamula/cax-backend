@@ -35,3 +35,13 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Secrets & Deployment Configurations ###
+.env
+deploy.config
+*.pem
+*.key
+*.jks
+service-account.json
+
+

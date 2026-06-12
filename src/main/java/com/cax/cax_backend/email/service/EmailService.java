@@ -1,7 +1,12 @@
 package com.cax.cax_backend.email.service;
 
+import java.util.Optional;
 import com.cax.cax_backend.idcard.model.IDCard;
 import com.cax.cax_backend.user.model.User;
+import com.cax.cax_backend.event.model.Event;
+import com.cax.cax_backend.event.model.EventParticipant;
+import com.cax.cax_backend.club.model.Club;
+import com.cax.cax_backend.user.repository.UserRepository;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -17,6 +23,7 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final UserRepository userRepository;
 
     @Value("${spring.mail.username}")
     private String fromEmail;
@@ -27,6 +34,10 @@ public class EmailService {
     public void sendGreetingEmail(User user) {
         if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
             log.warn("Cannot send greeting email: user or email is null/empty");
+            return;
+        }
+        if (user.isBlocked()) {
+            log.info("User {} is blocked. Skipping greeting email.", user.getUserId());
             return;
         }
 
@@ -99,6 +110,15 @@ public class EmailService {
             log.warn("Cannot send newsletter confirmation email: email is null/empty");
             return;
         }
+        String normalizedEmail = toEmail != null ? toEmail.toLowerCase().trim() : "";
+        Optional<User> uOpt = userRepository.findByEmail(normalizedEmail);
+        if (uOpt.isPresent()) {
+            User user = uOpt.get();
+            if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
+                log.info("User associated with {} is blocked or verification expired. Skipping newsletter confirmation.", toEmail);
+                return;
+            }
+        }
 
         String subject = "Subscription Confirmed: Cax Bulletins Digest";
 
@@ -157,6 +177,10 @@ public class EmailService {
             log.warn("Cannot send ID verification request email: user or email is null/empty");
             return;
         }
+        if (user.isBlocked()) {
+            log.info("User {} is blocked. Skipping ID verification request email.", user.getUserId());
+            return;
+        }
 
         String to = user.getEmail();
         String name = user.getName() != null ? user.getName() : "Student";
@@ -192,7 +216,6 @@ public class EmailService {
             "        <ul>\n" +
             "            <li>Registering for official student clubs</li>\n" +
             "            <li>Securing RSVPs to campus events & workshops</li>\n" +
-            "            <li>Trading securely on the Campus Marketplace</li>\n" +
             "            <li>Assigning club leadership & coordinator privileges</li>\n" +
             "        </ul>\n" +
             "        <div class=\"highlight-box\">\n" +
@@ -234,6 +257,10 @@ public class EmailService {
             log.warn("Cannot send ID card status email: user or email is null/empty");
             return;
         }
+        if (user.isBlocked()) {
+            log.info("User {} is blocked. Skipping ID card status email.", user.getUserId());
+            return;
+        }
 
         String to = user.getEmail();
         String name = user.getName() != null ? user.getName() : "Student";
@@ -250,7 +277,7 @@ public class EmailService {
         StringBuilder detailMessage = new StringBuilder();
         if (isApproved) {
             detailMessage.append("<p>Congratulations! Your Student ID card verification request has been successfully reviewed and approved.</p>");
-            detailMessage.append("<p>Your digital CAX ID is now verified. You have unlocked full operational access to official clubs, event registrations, student coordinator privileges, and the marketplace.</p>");
+            detailMessage.append("<p>Your digital CAX ID is now verified. You have unlocked full operational access to official clubs, event registrations, and student coordinator privileges.</p>");
             if (idCard.getVerificationNotes() != null && !idCard.getVerificationNotes().isBlank()) {
                 detailMessage.append("<div class=\"highlight-box\" style=\"border-left-color: #10B981;\">");
                 detailMessage.append("<p style=\"font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #70695E; margin-bottom: 6px;\">Verification Notes</p>");
@@ -323,6 +350,333 @@ public class EmailService {
             log.error("Failed to send ID Card status email to {}: ", to, e);
         } catch (Exception e) {
             log.error("Unexpected error sending ID Card status email to {}: ", to, e);
+        }
+    }
+
+    /**
+     * Send a professional event registration status update email.
+     */
+    public void sendEventRegistrationStatusEmail(EventParticipant participant, Event event) {
+        if (participant == null || participant.getEmail() == null || participant.getEmail().isBlank()) {
+            log.warn("Cannot send registration email: participant or email is null/empty");
+            return;
+        }
+        String normalizedEmail = participant.getEmail() != null ? participant.getEmail().toLowerCase().trim() : "";
+        Optional<User> uOpt = userRepository.findByEmail(normalizedEmail);
+        if (uOpt.isPresent()) {
+            User user = uOpt.get();
+            if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
+                log.info("Participant {} is blocked or verification expired. Skipping registration status email.", participant.getEmail());
+                return;
+            }
+        }
+
+        String to = participant.getEmail();
+        String name = participant.getName() != null ? participant.getName() : "Student";
+        String eventName = event != null ? event.getName() : "the event";
+        boolean isApproved = "VERIFIED".equals(participant.getStatus());
+
+        String subject = isApproved
+                ? "Your Registration is Confirmed: " + eventName + " 🎟️"
+                : "Update: Registration for " + eventName + " ⚠️";
+
+        String statusTitle = isApproved ? "Registration Approved" : "Registration Rejected";
+        String statusColor = isApproved ? "#10B981" : "#EF4444"; // Green vs Red
+        String statusEmoji = isApproved ? "✅" : "⚠️";
+
+        StringBuilder detailMessage = new StringBuilder();
+        if (isApproved) {
+            detailMessage.append("<p>Great news! Your registration request for <strong>").append(eventName).append("</strong> has been successfully approved.</p>");
+            if (participant.getTicketCode() != null && !participant.getTicketCode().isEmpty()) {
+                detailMessage.append("<div class=\"highlight-box\" style=\"border-left-color: #10B981;\">");
+                detailMessage.append("<p style=\"font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #70695E; margin-bottom: 6px;\">Your Ticket Code</p>");
+                detailMessage.append("<p style=\"font-size: 18px; font-weight: 700; font-family: monospace; color: #2C227F;\">").append(participant.getTicketCode()).append("</p>");
+                detailMessage.append("<p style=\"font-size: 12px; color: #70695E; margin-top: 6px;\">Please present this code at check-in when entering the event.</p>");
+                detailMessage.append("</div>");
+            }
+        } else {
+            detailMessage.append("<p>Your registration request for <strong>").append(eventName).append("</strong> has been rejected by the event organizer.</p>");
+            detailMessage.append("<p>If this is an error or if you need to submit new payment details, please check the event page or contact the organizers.</p>");
+        }
+
+        String htmlContent = String.format(
+            "<!DOCTYPE html>\n" +
+            "<html>\n" +
+            "<head>\n" +
+            "    <meta charset=\"utf-8\">\n" +
+            "    <style>\n" +
+            "        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #FAF8F5; color: #191816; margin: 0; padding: 40px 20px; }\n" +
+            "        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #E6DFD5; border-radius: 4px; padding: 40px; box-shadow: 4px 4px 0px #E6DFD5; }\n" +
+            "        h1 { font-family: Georgia, serif; font-size: 28px; font-weight: 300; line-height: 1.2; margin: 0 0 10px 0; color: #191816; }\n" +
+            "        h1 span { color: #2C227F; font-style: italic; font-weight: normal; }\n" +
+            "        .status-badge { display: inline-block; padding: 6px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: %s; border: 1px solid %s; background-color: #ffffff; border-radius: 20px; margin-bottom: 24px; }\n" +
+            "        p { font-size: 15px; line-height: 1.6; margin: 0 0 16px 0; color: #70695E; }\n" +
+            "        .highlight-box { background-color: #FAF8F5; border-left: 3px solid #2C227F; padding: 16px; margin: 24px 0; border-radius: 2px; }\n" +
+            "        .highlight-box p { margin: 0; }\n" +
+            "        .btn { display: inline-block; background-color: #2C227F; color: #FAF8F5 !important; text-decoration: none; padding: 12px 24px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 4px; box-shadow: 3px 3px 0px #E6DFD5; margin-top: 10px; margin-bottom: 30px; }\n" +
+            "        .footer { border-top: 1px solid #E6DFD5; padding-top: 24px; margin-top: 32px; font-size: 11px; color: #70695E; font-family: monospace; }\n" +
+            "    </style>\n" +
+            "</head>\n" +
+            "<body>\n" +
+            "    <div class=\"container\">\n" +
+            "        <h1>Event <span>Registration</span></h1>\n" +
+            "        <div class=\"status-badge\">%s %s</div>\n" +
+            "        <p>Hello %s,</p>\n" +
+            "        %s\n" +
+            "        <p>Check the console for details:</p>\n" +
+            "        <a href=\"https://caxone.in\" class=\"btn\">Open Dashboard</a>\n" +
+            "        <div class=\"footer\">\n" +
+            "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your registration status.</p>\n" +
+            "        </div>\n" +
+            "    </div>\n" +
+            "</body>\n" +
+            "</html>",
+            statusColor,
+            statusColor,
+            statusEmoji,
+            statusTitle,
+            name,
+            detailMessage.toString()
+        );
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("Event registration status email successfully sent to {} for event {}", to, eventName);
+        } catch (MessagingException e) {
+            log.error("Failed to send event registration status email to {}: ", to, e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending event registration status email to {}: ", to, e);
+        }
+    }
+
+    /**
+     * Send a professional club leadership assignment email.
+     */
+    @Async("taskExecutor")
+    public void sendClubLeaderAssignmentEmail(User user, Club club, String role) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            log.warn("Cannot send club leadership email: user or email is null/empty");
+            return;
+        }
+        if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
+            log.info("User {} is blocked or verification expired. Skipping club leadership email.", user.getUserId());
+            return;
+        }
+
+        String to = user.getEmail();
+        String name = user.getName() != null ? user.getName() : "Student";
+        String clubName = club != null ? club.getName() : "the club";
+        String subject = String.format("Congratulations! You've been assigned as %s of %s 🎉", role, clubName);
+
+        String htmlContent = String.format(
+            "<!DOCTYPE html>\n" +
+            "<html>\n" +
+            "<head>\n" +
+            "    <meta charset=\"utf-8\">\n" +
+            "    <style>\n" +
+            "        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #FAF8F5; color: #191816; margin: 0; padding: 40px 20px; }\n" +
+            "        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #E6DFD5; border-radius: 4px; padding: 40px; box-shadow: 4px 4px 0px #E6DFD5; }\n" +
+            "        h1 { font-family: Georgia, serif; font-size: 28px; font-weight: 300; line-height: 1.2; margin: 0 0 20px 0; color: #191816; }\n" +
+            "        h1 span { color: #2C227F; font-style: italic; font-weight: normal; }\n" +
+            "        p { font-size: 15px; line-height: 1.6; margin: 0 0 16px 0; color: #70695E; }\n" +
+            "        .highlight-box { background-color: #FAF8F5; border-left: 3px solid #2C227F; padding: 16px; margin: 24px 0; border-radius: 2px; }\n" +
+            "        .highlight-box p { margin: 0; font-size: 14px; font-weight: 500; color: #191816; }\n" +
+            "        .footer { border-top: 1px solid #E6DFD5; padding-top: 24px; margin-top: 32px; font-size: 11px; color: #70695E; font-family: monospace; }\n" +
+            "    </style>\n" +
+            "</head>\n" +
+            "<body>\n" +
+            "    <div class=\"container\">\n" +
+            "        <h1>Club <span>Leadership Assignment</span></h1>\n" +
+            "        <p>Hello %s,</p>\n" +
+            "        <p>We are excited to inform you that you have been assigned as the <strong>%s</strong> of the official club <strong>%s</strong>.</p>\n" +
+            "        <div class=\"highlight-box\">\n" +
+            "            <p>Role: %s</p>\n" +
+            "            <p>Club: %s</p>\n" +
+            "            <p>Assigned privileges: Manage Events, Manage Members, Manage Settings, Posts, and Memories.</p>\n" +
+            "        </div>\n" +
+            "        <p>Please log in to the CAX Mobile App or Web Console to begin managing your club.</p>\n" +
+            "        <div class=\"footer\">\n" +
+            "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your leadership assignment.</p>\n" +
+            "        </div>\n" +
+            "    </div>\n" +
+            "</body>\n" +
+            "</html>",
+            name,
+            role,
+            clubName,
+            role,
+            clubName
+        );
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("Leadership assignment email successfully sent to {} for club {}", to, clubName);
+        } catch (MessagingException e) {
+            log.error("Failed to send leadership assignment email to {}: ", to, e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending leadership assignment email to {}: ", to, e);
+        }
+    }
+
+    /**
+     * Send a beautiful HTML email notifying the student of their promotion to Super Student.
+     */
+    public void sendSuperStudentPromotionEmail(User user) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            log.warn("Cannot send Super Student promotion email: user or email is null/empty");
+            return;
+        }
+        if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
+            log.info("User {} is blocked or verification expired. Skipping Super Student promotion email.", user.getUserId());
+            return;
+        }
+
+        String to = user.getEmail();
+        String name = user.getName() != null ? user.getName() : "Student";
+        String collegeName = (user.getCollegeDetails() != null && user.getCollegeDetails().getCollegeName() != null)
+                ? user.getCollegeDetails().getCollegeName()
+                : "your university";
+        String subject = "Congratulations! You are now a Verified Super Student! 👑";
+
+        String htmlContent = String.format(
+            "<!DOCTYPE html>\n" +
+            "<html>\n" +
+            "<head>\n" +
+            "    <meta charset=\"utf-8\">\n" +
+            "    <style>\n" +
+            "        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #FAF8F5; color: #191816; margin: 0; padding: 40px 20px; }\n" +
+            "        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #E6DFD5; border-radius: 4px; padding: 40px; box-shadow: 4px 4px 0px #E6DFD5; }\n" +
+            "        h1 { font-family: Georgia, serif; font-size: 28px; font-weight: 300; line-height: 1.2; margin: 0 0 10px 0; color: #191816; }\n" +
+            "        h1 span { color: #D97706; font-style: italic; font-weight: normal; }\n" +
+            "        .status-badge { display: inline-block; padding: 6px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); background-color: #FEF3C7; border-radius: 20px; margin-bottom: 24px; }\n" +
+            "        p { font-size: 15px; line-height: 1.6; margin: 0 0 16px 0; color: #70695E; }\n" +
+            "        .highlight-box { background-color: #FFFDF9; border-left: 3px solid #D97706; padding: 16px; margin: 24px 0; border-radius: 2px; box-shadow: 2px 2px 0px #F5EFEB; }\n" +
+            "        .highlight-box p { margin: 0; font-size: 14px; font-weight: 550; color: #7F5F00; }\n" +
+            "        .btn { display: inline-block; background-color: #2C227F; color: #FAF8F5 !important; text-decoration: none; padding: 12px 24px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 4px; box-shadow: 3px 3px 0px #E6DFD5; margin-top: 10px; margin-bottom: 30px; }\n" +
+            "        .footer { border-top: 1px solid #E6DFD5; padding-top: 24px; margin-top: 32px; font-size: 11px; color: #70695E; font-family: monospace; }\n" +
+            "    </style>\n" +
+            "</head>\n" +
+            "<body>\n" +
+            "    <div class=\"container\">\n" +
+            "        <h1>CAX <span>Super Student</span></h1>\n" +
+            "        <div class=\"status-badge\">👑 Role Promoted</div>\n" +
+            "        <p>Hello %s,</p>\n" +
+            "        <p>Congratulations! You have been officially promoted to the role of <strong>Super Student</strong> for <strong>%s</strong>.</p>\n" +
+            "        <p>As a Super Student, you now hold coordinator rights to help manage activities and student services for your campus.</p>\n" +
+            "        <div class=\"highlight-box\">\n" +
+            "            <p>🌟 Your Profile Badge: A Golden Crown icon is now visible next to your name on feed and comments.</p>\n" +
+            "            <p>🌟 Verified CAX ID Card: Your digital ID is automatically verified and styled with holographic highlights.</p>\n" +
+            "        </div>\n" +
+            "        <p>Launch the app to check out your new features and dashboard settings:</p>\n" +
+            "        <a href=\"https://caxone.in\" class=\"btn\">Launch Dashboard</a>\n" +
+            "        <div class=\"footer\">\n" +
+            "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your student role upgrade.</p>\n" +
+            "        </div>\n" +
+            "    </div>\n" +
+            "</body>\n" +
+            "</html>",
+            name,
+            collegeName
+        );
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("Super Student promotion email successfully sent to {} ({})", to, user.getUserId());
+        } catch (MessagingException e) {
+            log.error("Failed to send Super Student promotion email to {}: ", to, e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending Super Student promotion email to {}: ", to, e);
+        }
+    }
+
+    /**
+     * Send a professional HTML email notifying the student of their demotion back to standard Student role.
+     */
+    public void sendSuperStudentDemotionEmail(User user) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            log.warn("Cannot send Super Student demotion email: user or email is null/empty");
+            return;
+        }
+        if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
+            log.info("User {} is blocked or verification expired. Skipping Super Student demotion email.", user.getUserId());
+            return;
+        }
+
+        String to = user.getEmail();
+        String name = user.getName() != null ? user.getName() : "Student";
+        String subject = "Update: Super Student Privileges Revoked";
+
+        String htmlContent = String.format(
+            "<!DOCTYPE html>\n" +
+            "<html>\n" +
+            "<head>\n" +
+            "    <meta charset=\"utf-8\">\n" +
+            "    <style>\n" +
+            "        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #FAF8F5; color: #191816; margin: 0; padding: 40px 20px; }\n" +
+            "        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #E6DFD5; border-radius: 4px; padding: 40px; box-shadow: 4px 4px 0px #E6DFD5; }\n" +
+            "        h1 { font-family: Georgia, serif; font-size: 28px; font-weight: 300; line-height: 1.2; margin: 0 0 10px 0; color: #191816; }\n" +
+            "        h1 span { color: #EF4444; font-style: italic; font-weight: normal; }\n" +
+            "        .status-badge { display: inline-block; padding: 6px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); background-color: #FEF2F2; border-radius: 20px; margin-bottom: 24px; }\n" +
+            "        p { font-size: 15px; line-height: 1.6; margin: 0 0 16px 0; color: #70695E; }\n" +
+            "        .btn { display: inline-block; background-color: #2C227F; color: #FAF8F5 !important; text-decoration: none; padding: 12px 24px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 4px; box-shadow: 3px 3px 0px #E6DFD5; margin-top: 10px; margin-bottom: 30px; }\n" +
+            "        .footer { border-top: 1px solid #E6DFD5; padding-top: 24px; margin-top: 32px; font-size: 11px; color: #70695E; font-family: monospace; }\n" +
+            "    </style>\n" +
+            "</head>\n" +
+            "<body>\n" +
+            "    <div class=\"container\">\n" +
+            "        <h1>CAX <span>Role Update</span></h1>\n" +
+            "        <div class=\"status-badge\">⚠️ Role Updated</div>\n" +
+            "        <p>Hello %s,</p>\n" +
+            "        <p>This email is to notify you that your Super Student coordinator privileges have been revoked by the system administrator.</p>\n" +
+            "        <p>Your user role has been set back to <strong>Student</strong>. If you believe this is in error, please contact your university administrator or support.</p>\n" +
+            "        <div class=\"footer\">\n" +
+            "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your student role update.</p>\n" +
+            "        </div>\n" +
+            "    </div>\n" +
+            "</body>\n" +
+            "</html>",
+            name
+        );
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("Super Student demotion email successfully sent to {} ({})", to, user.getUserId());
+        } catch (MessagingException e) {
+            log.error("Failed to send Super Student demotion email to {}: ", to, e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending Super Student demotion email to {}: ", to, e);
         }
     }
 }

@@ -57,6 +57,9 @@ public class Club {
     );
 
     @Builder.Default
+    private List<String> memories = new java.util.ArrayList<>();
+
+    @Builder.Default
     private Instant createdAt = Instant.now();
 
     private Instant updatedAt;

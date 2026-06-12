@@ -1,6 +1,7 @@
 package com.cax.cax_backend.email.service;
 
 import com.cax.cax_backend.user.model.User;
+import com.cax.cax_backend.user.repository.UserRepository;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,9 @@ class EmailServiceTest {
 
     @Mock
     private MimeMessage mimeMessage;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private EmailService emailService;

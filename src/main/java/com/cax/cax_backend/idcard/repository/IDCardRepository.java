@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface IDCardRepository extends MongoRepository<IDCard, String> {
     Optional<IDCard> findByUserId(String userId);
+    List<IDCard> findByUserIdIn(List<String> userIds);
     List<IDCard> findByStatus(VerificationStatus status);
     long countByStatus(VerificationStatus status);
 }

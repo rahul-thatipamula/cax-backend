@@ -27,6 +27,7 @@ public class Notification {
     private String title;
     private String body;
     private NotificationType type;
+    private String imageUrl;
 
     @Builder.Default
     private NotificationPriority priority = NotificationPriority.MEDIUM;

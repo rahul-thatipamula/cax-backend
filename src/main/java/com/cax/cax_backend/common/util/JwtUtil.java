@@ -39,7 +39,42 @@ public class JwtUtil {
                         "userId", userId,
                         "email", email,
                         "role", role,
-                        "isAdmin", isAdmin
+                        "isAdmin", isAdmin,
+                        "type", "access"
+                ))
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + exp))
+                .signWith(key)
+                .compact();
+    }
+
+    public String generateTemp2FaToken(String userId, String email, String role, boolean isAdmin) {
+        long exp = 5 * 60 * 1000; // 5 minutes
+        return Jwts.builder()
+                .subject(userId)
+                .claims(Map.of(
+                        "userId", userId,
+                        "email", email,
+                        "role", role,
+                        "isAdmin", isAdmin,
+                        "type", "temp_2fa"
+                ))
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + exp))
+                .signWith(key)
+                .compact();
+    }
+
+    public String generateRefreshToken(String userId, String email, String role, boolean isAdmin) {
+        long exp = 7L * 24 * 60 * 60 * 1000; // 7 days
+        return Jwts.builder()
+                .subject(userId)
+                .claims(Map.of(
+                        "userId", userId,
+                        "email", email,
+                        "role", role,
+                        "isAdmin", isAdmin,
+                        "type", "refresh"
                 ))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + exp))

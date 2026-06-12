@@ -14,6 +14,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import com.cax.cax_backend.event.model.EventMemory;
+import org.springframework.data.domain.Page;
 
 @RestController
 @RequestMapping("/api")
@@ -122,9 +124,26 @@ public class EventController {
     }
 
     @GetMapping("/events/discover")
-    public ResponseEntity<ApiResponse<List<Event>>> discoverEvents() {
-        List<Event> events = eventService.discoverEvents();
+    public ResponseEntity<ApiResponse<List<Event>>> discoverEvents(
+            Authentication auth,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        String userId = auth != null && auth.isAuthenticated() ? (String) auth.getPrincipal() : null;
+        List<Event> events = eventService.discoverEvents(userId, page, size);
         return ResponseEntity.ok(ApiResponse.success(events));
+    }
+
+    @GetMapping("/events/joined")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getJoinedEvents(
+            Authentication auth,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        List<Map<String, Object>> joined = eventService.getJoinedEvents(userId, page, size);
+        return ResponseEntity.ok(ApiResponse.success(joined));
     }
 
 
@@ -192,5 +211,65 @@ public class EventController {
             @RequestParam String ticketCode) {
         Map<String, Object> details = eventService.getParticipantDetailsByCode(eventId, ticketCode);
         return ResponseEntity.ok(ApiResponse.success(details));
+    }
+
+    @PutMapping("/events/{eventId}/participants/{participantId}/suspicious")
+    public ResponseEntity<ApiResponse<EventParticipant>> toggleSuspicious(
+            Authentication auth,
+            @PathVariable String eventId,
+            @PathVariable String participantId,
+            @RequestBody Map<String, Object> body) {
+        String userId = (String) auth.getPrincipal();
+        boolean suspicious = (boolean) body.getOrDefault("suspicious", false);
+        String note = (String) body.get("suspiciousNote");
+        EventParticipant participant = eventService.toggleSuspicious(userId, eventId, participantId, suspicious, note);
+        return ResponseEntity.ok(ApiResponse.success("Suspicious status updated successfully", participant));
+    }
+
+    @PostMapping("/events/{eventId}/memories")
+    public ResponseEntity<ApiResponse<EventMemory>> uploadMemory(
+            Authentication auth,
+            @PathVariable String eventId,
+            @RequestBody Map<String, String> body) {
+        String userId = (String) auth.getPrincipal();
+        String imageUrl = body.get("imageUrl");
+        if (imageUrl == null || imageUrl.isBlank()) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("imageUrl is required");
+        }
+        EventMemory memory = eventService.uploadMemory(userId, eventId, imageUrl);
+        return ResponseEntity.ok(ApiResponse.success("Memory photo uploaded successfully", memory));
+    }
+
+    @DeleteMapping("/events/{eventId}/memories/{memoryId}")
+    public ResponseEntity<ApiResponse<Void>> deleteMemory(
+            Authentication auth,
+            @PathVariable String eventId,
+            @PathVariable String memoryId) {
+        String userId = (String) auth.getPrincipal();
+        eventService.deleteMemory(userId, eventId, memoryId);
+        return ResponseEntity.ok(ApiResponse.success("Memory photo deleted successfully"));
+    }
+
+    @PutMapping("/events/{eventId}/memories/{memoryId}/toggle-hide")
+    public ResponseEntity<ApiResponse<EventMemory>> toggleHideMemory(
+            Authentication auth,
+            @PathVariable String eventId,
+            @PathVariable String memoryId,
+            @RequestParam boolean hidden) {
+        String userId = (String) auth.getPrincipal();
+        EventMemory memory = eventService.toggleHideMemory(userId, eventId, memoryId, hidden);
+        return ResponseEntity.ok(ApiResponse.success("Memory visibility updated", memory));
+    }
+
+    @GetMapping("/events/{eventId}/memories")
+    public ResponseEntity<ApiResponse<Page<EventMemory>>> getEventMemories(
+            Authentication auth,
+            @PathVariable String eventId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String filter) {
+        String userId = (String) auth.getPrincipal();
+        Page<EventMemory> memories = eventService.getEventMemories(userId, eventId, page, size, filter);
+        return ResponseEntity.ok(ApiResponse.success(memories));
     }
 }

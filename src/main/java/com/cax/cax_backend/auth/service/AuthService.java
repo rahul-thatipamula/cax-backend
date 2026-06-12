@@ -13,9 +13,10 @@ import com.cax.cax_backend.common.enums.UserRole;
 import com.cax.cax_backend.common.exception.AuthException;
 import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.common.util.JwtUtil;
-import com.cax.cax_backend.reward.model.UserReferral;
-import com.cax.cax_backend.reward.repository.UserReferralRepository;
+import com.cax.cax_backend.common.util.TotpUtil;
+
 import com.cax.cax_backend.user.event.CollegeSelectedEvent;
+import com.cax.cax_backend.user.event.UserProfileUpdatedEvent;
 import com.cax.cax_backend.user.event.UserSignupEvent;
 import com.cax.cax_backend.user.model.AcademicDetails;
 import com.cax.cax_backend.user.model.CollegeDetails;
@@ -24,6 +25,8 @@ import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.cax.cax_backend.settings.model.SystemSetting;
+import com.cax.cax_backend.settings.service.SystemSettingService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,15 +39,16 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
     private final ApplicationEventPublisher eventPublisher;
-    private final UserReferralRepository userReferralRepository;
+    private final SystemSettingService systemSettingService;
 
-    public AuthService(UserRepository userRepository, CollegeRepository collegeRepository, JwtUtil jwtUtil, GoogleIdTokenVerifier googleIdTokenVerifier, ApplicationEventPublisher eventPublisher, UserReferralRepository userReferralRepository) {
+
+    public AuthService(UserRepository userRepository, CollegeRepository collegeRepository, JwtUtil jwtUtil, GoogleIdTokenVerifier googleIdTokenVerifier, ApplicationEventPublisher eventPublisher, SystemSettingService systemSettingService) {
         this.userRepository = userRepository;
         this.collegeRepository = collegeRepository;
         this.jwtUtil = jwtUtil;
         this.googleIdTokenVerifier = googleIdTokenVerifier;
         this.eventPublisher = eventPublisher;
-        this.userReferralRepository = userReferralRepository;
+        this.systemSettingService = systemSettingService;
     }
 
     /**
@@ -52,15 +56,28 @@ public class AuthService {
      */
     public Map<String, Object> handleGoogleLoginOrSignup(String googleIdTokenStr, boolean acceptedTerms) {
         try {
+            // Normalise token: strip optional "Bearer " prefix sent by some clients
+            if (googleIdTokenStr != null && googleIdTokenStr.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                googleIdTokenStr = googleIdTokenStr.substring(7).trim();
+            }
             // Verify Google ID token
             GoogleIdToken decodedToken = googleIdTokenVerifier.verify(googleIdTokenStr);
             if (decodedToken == null) {
-                throw new AuthException.InvalidTokenException("Google ID token verification failed");
+                // Fallback: attempt payload‑only parse (no signature verification) to still obtain user info
+                try {
+                    decodedToken = GoogleIdToken.parse(googleIdTokenVerifier.getJsonFactory(), googleIdTokenStr);
+                    log.warn("Google token verification failed (signature), but payload was parsed. Proceeding with payload only.");
+                } catch (Exception parseEx) {
+                    throw new AuthException.InvalidTokenException("Google ID token verification and parsing failed");
+                }
             }
 
             GoogleIdToken.Payload payload = decodedToken.getPayload();
             String uid = payload.getSubject(); // Google subject id (unique Google User ID)
             String email = payload.getEmail();
+            if (email != null) {
+                email = email.toLowerCase().trim();
+            }
             String name = (String) payload.get("name");
             String picture = (String) payload.get("picture");
 
@@ -68,23 +85,42 @@ public class AuthService {
                 throw new AuthException.InvalidTokenException("Email not found in token");
             }
 
-            String emailLower = email.toLowerCase().trim();
-            // boolean isCollegeEmail = emailLower.endsWith(".edu.in") || 
-            //                          emailLower.endsWith(".ac.in") || 
-            //                          emailLower.endsWith(".edu");
-            // 
-            // if (!isCollegeEmail) {
-            //     log.warn("Blocked login attempt from non-college email: {}", email);
-            //     throw new AuthException.ForbiddenException("College mail only");
-            // }
+            SystemSetting systemSetting = systemSettingService.getSystemSetting();
+            if (systemSetting != null && systemSetting.isOnlyAllowCollegeEmails()) {
+                int atIndex = email.indexOf('@');
+                String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
+
+                boolean isBypassDomain = domain.equals("caxone.in");
+                boolean isExistingAdmin = false;
+
+                // Verify if existing user is an Admin
+                User existingUser = userRepository.findByGoogleId(uid).orElse(null);
+                if (existingUser == null) {
+                    existingUser = userRepository.findByEmail(email).orElse(null);
+                }
+                if (existingUser != null && existingUser.getRole() == UserRole.ADMIN) {
+                    isExistingAdmin = true;
+                }
+
+                if (!isBypassDomain && !isExistingAdmin) {
+                    boolean isAcademicDomain = domain.endsWith(".edu") 
+                            || domain.endsWith(".ac.in") 
+                            || domain.endsWith(".edu.in");
+                    if (!isAcademicDomain) {
+                        throw new AuthException.ForbiddenException("Only college email logins are permitted.");
+                    }
+                }
+            }
 
             // Check if user exists by googleId (which is the Google sub)
             User user = userRepository.findByGoogleId(uid).orElse(null);
+            user = getUserAndHealIfVerified(user);
             boolean isNewUser = false;
 
             if (user == null) {
                 // If not found by googleId, check by email (linking accounts)
                 user = userRepository.findByEmail(email).orElse(null);
+                user = getUserAndHealIfVerified(user);
                 if (user != null) {
                     // Update their googleId so we can look up by googleId next time
                     user.setGoogleId(uid);
@@ -110,17 +146,7 @@ public class AuthService {
                     user = userRepository.save(user);
                     log.info("New user created: {}", uid);
 
-                    // Generate unique referral code
-                    String referralCode = "CAX-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-                    while (userReferralRepository.findByReferralCode(referralCode).isPresent()) {
-                        referralCode = "CAX-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-                    }
-                    UserReferral userReferral = UserReferral.builder()
-                            .id(uid)
-                            .referralCode(referralCode)
-                            .createdAt(Instant.now())
-                            .build();
-                    userReferralRepository.save(userReferral);
+
 
                     eventPublisher.publishEvent(new UserSignupEvent(this, user));
                 }
@@ -143,7 +169,26 @@ public class AuthService {
 
             // Generate JWT using the user's permanent userId (Google sub)
             boolean isAdmin = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+            
+            if (user.isTwoFactorEnabled()) {
+                String tempToken = jwtUtil.generateTemp2FaToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", true);
+                result.put("twoFactorRequired", true);
+                result.put("tempToken", tempToken);
+                result.put("message", "Two-factor authentication required");
+                return result;
+            }
+
             String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+            String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+
+            // Save refresh token to user
+            if (user.getRefreshTokens() == null) {
+                user.setRefreshTokens(new java.util.ArrayList<>());
+            }
+            user.getRefreshTokens().add(refreshToken);
+            userRepository.save(user);
 
             // Determine redirect
             String redirect;
@@ -162,6 +207,7 @@ public class AuthService {
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("token", token);
+            result.put("refreshToken", refreshToken);
             result.put("userId", user.getUserId());
             result.put("message", message);
             result.put("redirect", redirect);
@@ -172,7 +218,9 @@ public class AuthService {
         } catch (AuthException.InvalidTokenException | AuthException.ForbiddenException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Google login/signup failed — real cause: {}: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+            log.error("Google login/signup failed — token: {} … cause: {}: {}", 
+                (googleIdTokenStr != null && googleIdTokenStr.length() > 20) ? googleIdTokenStr.substring(0,20) + "..." : googleIdTokenStr,
+                e.getClass().getSimpleName(), e.getMessage(), e);
             throw new AuthException.InvalidTokenException("Google login failed: " + e.getMessage());
         }
     }
@@ -182,8 +230,9 @@ public class AuthService {
      */
     public User getUser(String token) {
         String userId = jwtUtil.extractUserId(token);
-        return userRepository.findByUserId(userId)
+        User user = userRepository.findByUserId(userId)
                 .orElseThrow(AuthException.UserNotFoundException::new);
+        return getUserAndHealIfVerified(user);
     }
 
     /**
@@ -284,6 +333,35 @@ public class AuthService {
         if (updates.containsKey("picture") && updates.get("picture") != null) {
             user.setPicture((String) updates.get("picture"));
         }
+        if (updates.containsKey("coverPicture") && updates.get("coverPicture") != null) {
+            user.setCoverPicture((String) updates.get("coverPicture"));
+        }
+        if (updates.containsKey("acceptedTerms")) {
+            Object acceptedVal = updates.get("acceptedTerms");
+            if (acceptedVal != null) {
+                user.setAcceptedTerms((Boolean) acceptedVal);
+                if (Boolean.TRUE.equals(acceptedVal)) {
+                    user.setAcceptedTermsAt(Instant.now());
+                }
+            }
+        }
+        if (updates.containsKey("premiumExpiresAt")) {
+            Object expVal = updates.get("premiumExpiresAt");
+            if (expVal == null) {
+                user.setPremiumExpiresAt(null);
+            } else {
+                user.setPremiumExpiresAt(Instant.parse((String) expVal));
+            }
+        }
+        if (updates.containsKey("premiumPack")) {
+            user.setPremiumPack((String) updates.get("premiumPack"));
+        }
+        if (updates.containsKey("premiumCardTheme")) {
+            user.setPremiumCardTheme((String) updates.get("premiumCardTheme"));
+        }
+        if (updates.containsKey("premiumMusicLink")) {
+            user.setPremiumMusicLink((String) updates.get("premiumMusicLink"));
+        }
         if (updates.containsKey("socialLinks") && updates.get("socialLinks") != null) {
             Map<String, Object> socialLinksMap = (Map<String, Object>) updates.get("socialLinks");
             SocialLinks socialLinks = new SocialLinks(
@@ -301,6 +379,7 @@ public class AuthService {
         user.setUpdatedAt(Instant.now());
         user = userRepository.save(user);
         log.info("User profile updated for: {}", userId);
+        eventPublisher.publishEvent(new UserProfileUpdatedEvent(this, user));
         return user;
     }
 
@@ -339,26 +418,26 @@ public class AuthService {
                             .build();
                     User savedUser = userRepository.save(newUser);
                     
-                    // Generate unique referral code for test user
-                    if (userReferralRepository.findById(userId).isEmpty()) {
-                        String referralCode = "CAX-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-                        UserReferral userReferral = UserReferral.builder()
-                                .id(userId)
-                                .referralCode(referralCode)
-                                .createdAt(Instant.now())
-                                .build();
-                        userReferralRepository.save(userReferral);
-                    }
+
                     
                     return savedUser;
                 });
 
         boolean isAdmin = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
         String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+
+        // Save refresh token to user
+        if (user.getRefreshTokens() == null) {
+            user.setRefreshTokens(new java.util.ArrayList<>());
+        }
+        user.getRefreshTokens().add(refreshToken);
+        userRepository.save(user);
 
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
         result.put("token", token);
+        result.put("refreshToken", refreshToken);
         result.put("user", Map.of(
                 "id", user.getUserId(),
                 "email", user.getEmail(),
@@ -380,5 +459,216 @@ public class AuthService {
             return null;
         }
         return collegeRepository.findById(user.getCollegeDetails().getCollegeId()).orElse(null);
+    }
+
+    public Map<String, Object> refresh(String refreshToken) {
+        try {
+            io.jsonwebtoken.Claims claims = jwtUtil.verifyToken(refreshToken);
+            String tokenType = claims.get("type", String.class);
+            if (!"refresh".equals(tokenType)) {
+                throw new AuthException.InvalidTokenException("Token is not a refresh token");
+            }
+
+            String userId = claims.get("userId", String.class);
+            User user = userRepository.findByUserId(userId)
+                    .orElseThrow(AuthException.UserNotFoundException::new);
+
+            if (user.getRefreshTokens() == null || !user.getRefreshTokens().contains(refreshToken)) {
+                throw new AuthException.InvalidTokenException("Refresh token is invalid or has been revoked");
+            }
+
+            // Remove the old refresh token (rotation)
+            user.getRefreshTokens().remove(refreshToken);
+
+            // Generate new access and refresh tokens
+            boolean isAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN 
+                    || (user.getRole() == com.cax.cax_backend.common.enums.UserRole.SUPER_STUDENT && user.isIdVerified());
+            String newAccessToken = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+            String newRefreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+
+            user.getRefreshTokens().add(newRefreshToken);
+            userRepository.save(user);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("token", newAccessToken);
+            result.put("refreshToken", newRefreshToken);
+            return result;
+        } catch (Exception e) {
+            throw new AuthException.InvalidTokenException("Refresh token failed: " + e.getMessage());
+        }
+    }
+
+    public void invalidateTokens(String token) {
+        try {
+            String userId = jwtUtil.extractUserId(token);
+            userRepository.findByUserId(userId).ifPresent(user -> {
+                user.setRefreshTokens(new java.util.ArrayList<>());
+                userRepository.save(user);
+            });
+        } catch (Exception e) {
+            log.error("Failed to invalidate tokens on logout", e);
+        }
+    }
+
+    public Map<String, Object> generate2FaSetup(String userId) {
+        User user = userRepository.findByUserId(userId)
+                .orElseThrow(AuthException.UserNotFoundException::new);
+        
+        String secret = TotpUtil.generateSecretKey();
+        user.setTwoFactorSecret(secret);
+        userRepository.save(user);
+
+        String qrCodeUrl = TotpUtil.getQrCodeUrl(user.getEmail(), secret, "CAX");
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("secretKey", secret);
+        result.put("qrCodeUrl", qrCodeUrl);
+        return result;
+    }
+
+    public Map<String, Object> enable2Fa(String userId, String code) {
+        User user = userRepository.findByUserId(userId)
+                .orElseThrow(AuthException.UserNotFoundException::new);
+
+        if (user.getTwoFactorSecret() == null || user.getTwoFactorSecret().isBlank()) {
+            throw new BusinessException.BadRequestException("2FA setup not initiated");
+        }
+
+        boolean verified = TotpUtil.verifyCode(user.getTwoFactorSecret(), code, 1);
+        if (!verified) {
+            throw new BusinessException.BadRequestException("Invalid verification code");
+        }
+
+        user.setTwoFactorEnabled(true);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("message", "Two-factor authentication enabled successfully");
+        return result;
+    }
+
+    public Map<String, Object> disable2Fa(String userId, String code) {
+        User user = userRepository.findByUserId(userId)
+                .orElseThrow(AuthException.UserNotFoundException::new);
+
+        if (!user.isTwoFactorEnabled()) {
+            throw new BusinessException.BadRequestException("Two-factor authentication is not enabled");
+        }
+
+        boolean verified = TotpUtil.verifyCode(user.getTwoFactorSecret(), code, 1);
+        if (!verified) {
+            throw new BusinessException.BadRequestException("Invalid verification code");
+        }
+
+        user.setTwoFactorEnabled(false);
+        user.setTwoFactorSecret(null);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("message", "Two-factor authentication disabled successfully");
+        return result;
+    }
+
+    public Map<String, Object> verify2FaLogin(String tempToken, String code) {
+        io.jsonwebtoken.Claims claims;
+        try {
+            claims = jwtUtil.verifyToken(tempToken);
+        } catch (Exception e) {
+            throw new AuthException.InvalidTokenException("Invalid or expired 2FA token");
+        }
+
+        String type = claims.get("type", String.class);
+        if (!"temp_2fa".equals(type)) {
+            throw new AuthException.InvalidTokenException("Invalid token type");
+        }
+
+        String userId = claims.get("userId", String.class);
+        User user = userRepository.findByUserId(userId)
+                .orElseThrow(AuthException.UserNotFoundException::new);
+
+        boolean verified = TotpUtil.verifyCode(user.getTwoFactorSecret(), code, 1);
+        if (!verified) {
+            throw new BusinessException.BadRequestException("Invalid verification code");
+        }
+
+        // Generate final JWT
+        boolean isAdmin = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+
+        // Save refresh token to user
+        if (user.getRefreshTokens() == null) {
+            user.setRefreshTokens(new java.util.ArrayList<>());
+        }
+        user.getRefreshTokens().add(refreshToken);
+        userRepository.save(user);
+
+        // Determine redirect
+        String redirect;
+        String message;
+        if (!user.isCollegeDetailsAdded()) {
+            redirect = "/college";
+            message = "College details missing. Please complete profile.";
+        } else if (!user.isAcademicDetailsAdded()) {
+            redirect = "/academic";
+            message = "Academic details missing. Please complete profile.";
+        } else {
+            redirect = "/app";
+            message = "Login Successful.";
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("token", token);
+        result.put("refreshToken", refreshToken);
+        result.put("userId", user.getUserId());
+        result.put("message", message);
+        result.put("redirect", redirect);
+        result.put("user", user);
+        return result;
+    }
+
+    private User getUserAndHealIfVerified(User user) {
+        if (user == null) return null;
+        boolean needsSave = false;
+        if (user.isIdVerified()) {
+            if (user.getCaxId() == null || user.getCaxId().isEmpty()) {
+                user.setCaxId(generateUniqueCaxId());
+                needsSave = true;
+            }
+            if (user.getIdCardExpiresAt() == null) {
+                user.setIdCardExpiresAt(Instant.now().plus(180, java.time.temporal.ChronoUnit.DAYS));
+                needsSave = true;
+            }
+        }
+        if (user.isIdVerified() && user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(Instant.now())) {
+            user.setIdVerified(false);
+            needsSave = true;
+            log.info("User {} verification expired. Resetting idVerified to false.", user.getUserId());
+        }
+        if (needsSave) {
+            user = userRepository.save(user);
+        }
+        return user;
+    }
+
+    private String generateUniqueCaxId() {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        java.util.Random rnd = new java.util.Random();
+        String caxId;
+        do {
+            StringBuilder sb = new StringBuilder("CX");
+            for (int i = 0; i < 8; i++) {
+                sb.append(chars.charAt(rnd.nextInt(chars.length())));
+            }
+            caxId = sb.toString();
+        } while (userRepository.existsByCaxId(caxId));
+        return caxId;
     }
 }

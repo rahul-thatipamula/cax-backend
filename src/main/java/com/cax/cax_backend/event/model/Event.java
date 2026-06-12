@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -17,6 +19,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "events")
+@CompoundIndexes({
+    @CompoundIndex(name = "college_status_global_idx", def = "{'collegeId': 1, 'status': 1, 'global': 1}"),
+    @CompoundIndex(name = "global_status_idx", def = "{'global': 1, 'status': 1}")
+})
 public class Event {
     @Id
     private String id;
@@ -39,6 +45,10 @@ public class Event {
     @Builder.Default
     private boolean isPaid = false;
 
+    @JsonProperty("global")
+    @Builder.Default
+    private boolean global = false;
+
     @Builder.Default
     private double fee = 0;
 
@@ -54,5 +64,30 @@ public class Event {
 
     private List<String> eventImages;
 
+    private List<EventCoordinator> coordinators;
+
+    private List<String> guidelines;
+    private List<EventJury> jury;
+    private List<EventGuest> guests;
+
+    private String collegeId;
+    private String collegeName;
+
     private Instant updatedAt;
+
+    public List<EventCoordinator> getCoordinators() {
+        return coordinators == null ? new java.util.ArrayList<>() : coordinators;
+    }
+
+    public List<String> getGuidelines() {
+        return guidelines == null ? new java.util.ArrayList<>() : guidelines;
+    }
+
+    public List<EventJury> getJury() {
+        return jury == null ? new java.util.ArrayList<>() : jury;
+    }
+
+    public List<EventGuest> getGuests() {
+        return guests == null ? new java.util.ArrayList<>() : guests;
+    }
 }

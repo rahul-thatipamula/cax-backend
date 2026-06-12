@@ -110,7 +110,11 @@ public class ClubPostController {
     }
 
     @GetMapping("/posts/feed")
-    public ResponseEntity<ApiResponse<List<ClubPost>>> getFeed(Authentication auth, @RequestParam(required = false) String collegeId) {
+    public ResponseEntity<ApiResponse<List<ClubPost>>> getFeed(
+            Authentication auth,
+            @RequestParam(required = false) String collegeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         String finalCollegeId = collegeId;
         if (finalCollegeId == null || finalCollegeId.isBlank()) {
             String userId = (String) auth.getPrincipal();
@@ -124,7 +128,7 @@ public class ClubPostController {
             return ResponseEntity.ok(ApiResponse.success(List.of()));
         }
         
-        return ResponseEntity.ok(ApiResponse.success(clubPostService.getFeed(finalCollegeId)));
+        return ResponseEntity.ok(ApiResponse.success(clubPostService.getFeed(finalCollegeId, page, size)));
     }
 
     @GetMapping("/{clubId}/posts")

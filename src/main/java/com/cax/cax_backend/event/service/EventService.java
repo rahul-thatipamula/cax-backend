@@ -7,12 +7,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import com.cax.cax_backend.club.model.Club;
 import com.cax.cax_backend.club.model.ClubMember;
 import com.cax.cax_backend.club.service.ClubService;
 import com.cax.cax_backend.common.exception.BusinessException;
+import com.cax.cax_backend.event.event.EventCreatedEvent;
+import com.cax.cax_backend.event.event.EventRegistrationReviewedEvent;
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.event.model.EventParticipant;
 import com.cax.cax_backend.event.repository.EventParticipantRepository;
@@ -21,6 +24,13 @@ import com.cax.cax_backend.idcard.model.IDCard;
 import com.cax.cax_backend.idcard.repository.IDCardRepository;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
+import com.cax.cax_backend.event.model.EventMemory;
+import com.cax.cax_backend.event.repository.EventMemoryRepository;
+import com.cax.cax_backend.notification.service.NotificationService;
+import com.cax.cax_backend.common.enums.NotificationEnums.NotificationType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,10 +45,27 @@ public class EventService {
     private final ClubService clubService;
     private final UserService userService;
     private final IDCardRepository idCardRepository;
+    private final com.cax.cax_backend.college.repository.CollegeRepository collegeRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final EventMemoryRepository eventMemoryRepository;
+    private final NotificationService notificationService;
 
     // ========================================================================
     // EVENT CRUD
     // ========================================================================
+
+    private void populateCollegeDetails(Event event) {
+        if (event == null) return;
+        try {
+            Club club = clubService.getClubById(event.getClubId());
+            event.setCollegeId(club.getCollegeId());
+            collegeRepository.findById(club.getCollegeId()).ifPresent(c -> {
+                event.setCollegeName(c.getCollegeName());
+            });
+        } catch (Exception e) {
+            log.warn("Failed to populate college details for event: {}", event.getId(), e);
+        }
+    }
 
     public Event createEvent(String userId, String clubId, Event eventData) {
         Club club = clubService.getClubById(clubId);
@@ -48,13 +75,27 @@ public class EventService {
             throw new BusinessException.BadRequestException("An event can have at most 9 event-related images.");
         }
 
+        if (eventData.getCoordinators() != null && eventData.getCoordinators().size() > 4) {
+            throw new BusinessException.BadRequestException("An event can have at most 4 coordinators.");
+        }
+
         eventData.setClubId(clubId);
+        eventData.setCollegeId(club.getCollegeId());
+        collegeRepository.findById(club.getCollegeId()).ifPresent(c -> {
+            eventData.setCollegeName(c.getCollegeName());
+        });
         eventData.setCreatedByUserId(userId);
         eventData.setStatus("ACTIVE");
         eventData.setCreatedAt(Instant.now());
         eventData.setUpdatedAt(Instant.now());
 
         Event saved = eventRepository.save(eventData);
+
+        try {
+            eventPublisher.publishEvent(new EventCreatedEvent(this, saved));
+        } catch (Exception e) {
+            log.error("Failed to publish EventCreatedEvent for event: {}", saved.getId(), e);
+        }
 
         log.info("Event '{}' created by user {} in club {}", saved.getName(), userId, clubId);
         return saved;
@@ -73,6 +114,7 @@ public class EventService {
         if (eventData.getEventStartDate() != null) event.setEventStartDate(eventData.getEventStartDate());
         if (eventData.getEventEndDate() != null) event.setEventEndDate(eventData.getEventEndDate());
         event.setPaid(eventData.isPaid());
+        event.setGlobal(eventData.isGlobal());
         event.setFee(eventData.getFee());
         if (eventData.getUpiId() != null) event.setUpiId(eventData.getUpiId());
         if (eventData.getUpiQrCode() != null) event.setUpiQrCode(eventData.getUpiQrCode());
@@ -83,8 +125,26 @@ public class EventService {
             event.setEventImages(eventData.getEventImages());
         }
 
+        if (eventData.getCoordinators() != null) {
+            if (eventData.getCoordinators().size() > 4) {
+                throw new BusinessException.BadRequestException("An event can have at most 4 coordinators.");
+            }
+            event.setCoordinators(eventData.getCoordinators());
+        }
+
+        if (eventData.getGuidelines() != null) {
+            event.setGuidelines(eventData.getGuidelines());
+        }
+        if (eventData.getJury() != null) {
+            event.setJury(eventData.getJury());
+        }
+        if (eventData.getGuests() != null) {
+            event.setGuests(eventData.getGuests());
+        }
+
         event.setUpdatedAt(Instant.now());
-        return eventRepository.save(event);
+        Event saved = eventRepository.save(event);
+        return saved;
     }
 
     public void cancelEvent(String userId, String eventId) {
@@ -106,8 +166,10 @@ public class EventService {
     }
 
     public Event getEventById(String eventId) {
-        return eventRepository.findById(eventId)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Event", eventId));
+        populateCollegeDetails(event);
+        return event;
     }
 
     public Map<String, Object> getEventDetailForUser(String userId, String eventId) {
@@ -116,7 +178,7 @@ public class EventService {
         User user = userService.getUserByUserId(userId);
         
         boolean isSystemAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
-        if (!isSystemAdmin && user.getCollegeDetails() != null && !club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+        if (!isSystemAdmin && !event.isGlobal() && user.getCollegeDetails() != null && !club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
             throw new BusinessException.BadRequestException("You cannot access an event from another college.");
         }
 
@@ -130,14 +192,86 @@ public class EventService {
         return result;
     }
 
-    public List<Event> discoverEvents() {
-        List<Event> activeEvents = eventRepository.findByStatus("ACTIVE");
+    public List<Event> discoverEvents(String userId) {
+        return discoverEvents(userId, 0, 50);
+    }
+
+    public List<Event> discoverEvents(String userId, int page, int size) {
         Instant now = Instant.now();
 
-        // Filter out events past registration deadline
-        return activeEvents.stream()
+        final String userCollegeId;
+        if (userId != null && !userId.isBlank()) {
+            User user = userService.getUserByUserId(userId);
+            userCollegeId = (user.getCollegeDetails() != null) ? user.getCollegeDetails().getCollegeId() : null;
+        } else {
+            userCollegeId = null;
+        }
+
+        // Fetch active global events
+        List<Event> globalEvents = eventRepository.findByStatusAndGlobalTrue("ACTIVE");
+
+        // Fetch active events from the user's college
+        List<Event> collegeEvents = new java.util.ArrayList<>();
+        if (userCollegeId != null) {
+            collegeEvents = eventRepository.findByCollegeIdAndStatus(userCollegeId, "ACTIVE");
+        }
+
+        // Combine events and remove potential duplicates
+        List<Event> allEvents = new java.util.ArrayList<>();
+        allEvents.addAll(globalEvents);
+        allEvents.addAll(collegeEvents);
+
+        // Filter by date and extract distinct
+        List<Event> filtered = allEvents.stream()
                 .filter(e -> e.getRegistrationEndDate() != null && e.getRegistrationEndDate().isAfter(now))
+                .distinct()
                 .collect(Collectors.toList());
+
+        int fromIndex = page * size;
+        if (fromIndex >= filtered.size() || size <= 0) {
+            return new java.util.ArrayList<>();
+        }
+        int toIndex = Math.min(fromIndex + size, filtered.size());
+        return filtered.subList(fromIndex, toIndex);
+    }
+
+    public List<Map<String, Object>> getJoinedEvents(String userId) {
+        return getJoinedEvents(userId, 0, 50);
+    }
+
+    public List<Map<String, Object>> getJoinedEvents(String userId, int page, int size) {
+        List<EventParticipant> registrations = eventParticipantRepository.findByUserId(userId);
+        if (registrations.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+
+        List<String> eventIds = registrations.stream()
+                .map(EventParticipant::getEventId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toList());
+
+        List<Event> events = eventRepository.findAllById(eventIds);
+        Map<String, Event> eventMap = events.stream()
+                .collect(Collectors.toMap(Event::getId, e -> e));
+
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (EventParticipant participant : registrations) {
+            Event event = eventMap.get(participant.getEventId());
+            if (event != null) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("event", event);
+                item.put("organizerRole", null);
+                item.put("participantStatus", participant.getStatus());
+                result.add(item);
+            }
+        }
+
+        int fromIndex = page * size;
+        if (fromIndex >= result.size() || size <= 0) {
+            return new java.util.ArrayList<>();
+        }
+        int toIndex = Math.min(fromIndex + size, result.size());
+        return result.subList(fromIndex, toIndex);
     }
 
 
@@ -231,16 +365,42 @@ public class EventService {
         participant.setVerifiedByUserId(organizerId);
         participant.setVerifiedAt(Instant.now());
 
-        return eventParticipantRepository.save(participant);
+        EventParticipant saved = eventParticipantRepository.save(participant);
+        try {
+            Event event = getEventById(eventId);
+            eventPublisher.publishEvent(new EventRegistrationReviewedEvent(this, saved, event));
+        } catch (Exception e) {
+            log.error("Failed to publish EventRegistrationReviewedEvent for participant: {}", participantId, e);
+        }
+        return saved;
     }
 
     public List<EventParticipant> getParticipants(String userId, String eventId) {
         // Access control removed - all users can view participants
         List<EventParticipant> participants = eventParticipantRepository.findByEventId(eventId);
+        if (participants.isEmpty()) {
+            return participants;
+        }
+
+        List<String> userIds = participants.stream()
+                .map(EventParticipant::getUserId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toList());
+
+        List<com.cax.cax_backend.idcard.model.IDCard> cards = idCardRepository.findByUserIdIn(userIds);
+        Map<String, String> userIdToCardNumberMap = cards.stream()
+                .filter(card -> card.getUserId() != null && card.getIdCardNumber() != null)
+                .collect(Collectors.toMap(
+                        com.cax.cax_backend.idcard.model.IDCard::getUserId,
+                        com.cax.cax_backend.idcard.model.IDCard::getIdCardNumber,
+                        (existing, replacement) -> existing
+                ));
+
         for (EventParticipant p : participants) {
-            idCardRepository.findByUserId(p.getUserId()).ifPresent(card -> {
-                p.setIdCardNumber(card.getIdCardNumber());
-            });
+            String cardNumber = userIdToCardNumberMap.get(p.getUserId());
+            if (cardNumber != null) {
+                p.setIdCardNumber(cardNumber);
+            }
         }
         return participants;
     }
@@ -283,5 +443,138 @@ public class EventService {
         details.put("participant", participant);
         details.put("idCard", idCard);
         return details;
+    }
+
+    public EventParticipant toggleSuspicious(String organizerId, String eventId, String participantId, boolean suspicious, String note) {
+        EventParticipant participant = eventParticipantRepository.findById(participantId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("EventParticipant", participantId));
+
+        if (!participant.getEventId().equals(eventId)) {
+            throw new BusinessException.BadRequestException("Participant does not belong to this event.");
+        }
+
+        participant.setSuspicious(suspicious);
+        participant.setSuspiciousNote(note);
+
+        return eventParticipantRepository.save(participant);
+    }
+
+    public boolean hasEventManagePermission(String userId, Event event) {
+        if (userId.equals(event.getCreatedByUserId())) {
+            return true;
+        }
+        return clubService.isClubLeaderOrManager(userId, event.getClubId());
+    }
+
+    public EventMemory uploadMemory(String userId, String eventId, String imageUrl) {
+        Event event = getEventById(eventId);
+        if (!hasEventManagePermission(userId, event)) {
+            throw new BusinessException.BadRequestException("Unauthorized: You do not have permission to manage this event's memories.");
+        }
+        
+        Instant now = Instant.now();
+        boolean isOngoing = now.isAfter(event.getEventStartDate()) && now.isBefore(event.getEventEndDate());
+        boolean isActive = "ACTIVE".equalsIgnoreCase(event.getStatus());
+        if (!isOngoing || !isActive) {
+            throw new BusinessException.BadRequestException("Memories can only be uploaded while the event is ongoing and active.");
+        }
+
+        EventMemory memory = EventMemory.builder()
+                .eventId(eventId)
+                .imageUrl(imageUrl)
+                .uploadedAt(Instant.now())
+                .hidden(false)
+                .build();
+        EventMemory saved = eventMemoryRepository.save(memory);
+
+        try {
+            List<EventParticipant> participants = eventParticipantRepository.findByEventId(eventId);
+            if (participants != null && !participants.isEmpty()) {
+                String title = "New Live Memory Shared!";
+                String body = "A new live photo memory has been shared for the event: " + event.getName();
+
+                Map<String, String> data = new HashMap<>();
+                data.put("type", "EVENT_MEMORY_ADDED");
+                data.put("eventId", eventId);
+                data.put("deepLink", "cax://events/" + eventId);
+
+                for (EventParticipant p : participants) {
+                    if (p.getUserId() != null && !p.getUserId().equals(userId) && "VERIFIED".equalsIgnoreCase(p.getStatus())) {
+                        try {
+                            notificationService.createNotification(
+                                    p.getUserId(),
+                                    title,
+                                    body,
+                                    NotificationType.EVENT,
+                                    data
+                            );
+                        } catch (Exception e) {
+                            log.error("Failed to send memory notification to user: {}", p.getUserId(), e);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error setting up memories notifications: ", e);
+        }
+
+        return saved;
+    }
+
+    public void deleteMemory(String userId, String eventId, String memoryId) {
+        Event event = getEventById(eventId);
+        if (!hasEventManagePermission(userId, event)) {
+            throw new BusinessException.BadRequestException("Unauthorized: You do not have permission to manage this event's memories.");
+        }
+
+        EventMemory memory = eventMemoryRepository.findById(memoryId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("EventMemory", memoryId));
+        if (!memory.getEventId().equals(eventId)) {
+            throw new BusinessException.BadRequestException("Memory does not belong to this event.");
+        }
+
+        eventMemoryRepository.delete(memory);
+    }
+
+    public EventMemory toggleHideMemory(String userId, String eventId, String memoryId, boolean hidden) {
+        Event event = getEventById(eventId);
+        if (!hasEventManagePermission(userId, event)) {
+            throw new BusinessException.BadRequestException("Unauthorized: You do not have permission to manage this event's memories.");
+        }
+
+        EventMemory memory = eventMemoryRepository.findById(memoryId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("EventMemory", memoryId));
+        if (!memory.getEventId().equals(eventId)) {
+            throw new BusinessException.BadRequestException("Memory does not belong to this event.");
+        }
+
+        memory.setHidden(hidden);
+        return eventMemoryRepository.save(memory);
+    }
+
+    public Page<EventMemory> getEventMemories(String userId, String eventId, int page, int size, String filter) {
+        Event event = getEventById(eventId);
+        boolean isManager = hasEventManagePermission(userId, event);
+        
+        if (!isManager) {
+            Optional<EventParticipant> participantOpt = eventParticipantRepository.findByEventIdAndUserId(eventId, userId);
+            boolean isJoined = participantOpt.isPresent() && "VERIFIED".equalsIgnoreCase(participantOpt.get().getStatus());
+            if (!isJoined) {
+                throw new BusinessException.BadRequestException("Unauthorized: Only registered participants can view this event's memories.");
+            }
+        }
+
+        Pageable pageable = PageRequest.of(page, size);
+        if (isManager) {
+            if ("hidden".equalsIgnoreCase(filter)) {
+                return eventMemoryRepository.findByEventIdAndHiddenOrderByUploadedAtDesc(eventId, true, pageable);
+            } else if ("visible".equalsIgnoreCase(filter)) {
+                return eventMemoryRepository.findByEventIdAndHiddenOrderByUploadedAtDesc(eventId, false, pageable);
+            } else {
+                return eventMemoryRepository.findByEventIdOrderByUploadedAtDesc(eventId, pageable);
+            }
+        } else {
+            return eventMemoryRepository.findByEventIdAndHiddenOrderByUploadedAtDesc(eventId, false, pageable);
+        }
     }
 }

@@ -5,6 +5,7 @@ import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.common.util.JwtUtil;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.college.model.College;
+import com.cax.cax_backend.common.exception.AuthException;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -32,8 +33,16 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "Acceptance of the Terms of Service and Privacy Policy is required to log in."));
         }
         String idToken = token.replaceFirst("(?i)^Bearer\\s+", "").trim();
-        Map<String, Object> result = authService.handleGoogleLoginOrSignup(idToken, acceptedTerms);
-        return ResponseEntity.ok(result);
+        try {
+            Map<String, Object> result = authService.handleGoogleLoginOrSignup(idToken, acceptedTerms);
+            return ResponseEntity.ok(result);
+        } catch (AuthException.InvalidTokenException e) {
+            return ResponseEntity.status(401).body(Map.of("error", e.getMessage(), "success", false));
+        } catch (AuthException.ForbiddenException e) {
+            return ResponseEntity.status(403).body(Map.of("error", e.getMessage(), "success", false));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Google login failed: " + e.getMessage(), "success", false));
+        }
     }
 
     @PostMapping("/college")
@@ -102,5 +111,21 @@ public class AuthController {
     @GetMapping("/generate-test-token")
     public ResponseEntity<Map<String, Object>> generateTestToken(@RequestParam String userId) {
         return ResponseEntity.ok(authService.generateTestToken(userId));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<Map<String, Object>> refresh(@RequestBody Map<String, String> body) {
+        String refreshToken = body.get("refreshToken");
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "refreshToken is required"));
+        }
+        return ResponseEntity.ok(authService.refresh(refreshToken));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestHeader("Authorization") String authHeader) {
+        String token = JwtUtil.extractFromHeader(authHeader);
+        authService.invalidateTokens(token);
+        return ResponseEntity.ok(ApiResponse.success("Logged out successfully"));
     }
 }

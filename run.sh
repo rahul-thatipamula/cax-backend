@@ -5,5 +5,5 @@ set -a
 source .env
 set +a
 
-# Run gradle bootRun
-gradle bootRun
+# Run gradle bootRun using the wrapper
+./gradlew bootRun

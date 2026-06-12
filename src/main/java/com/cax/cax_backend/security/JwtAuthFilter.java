@@ -44,6 +44,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String token = authHeader.substring(7);
             Claims claims = jwtUtil.verifyToken(token);
 
+            String tokenType = claims.get("type", String.class);
+            if ("refresh".equals(tokenType) || "temp_2fa".equals(tokenType)) {
+                log.debug("Rejecting refresh or temp_2fa token used as access token");
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             String userId = claims.get("userId", String.class);
             if (userId == null) {
                 userId = claims.getSubject();

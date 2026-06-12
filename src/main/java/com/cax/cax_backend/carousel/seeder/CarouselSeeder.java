@@ -27,20 +27,7 @@ public class CarouselSeeder implements CommandLineRunner {
     public void run(String... args) {
         List<Carousel> records = new ArrayList<>();
 
-        if (!carouselRepository.existsByTitleAndCollegeIdIsNull("Campus marketplace is live")) {
-            records.add(Carousel.builder()
-                    .title("Campus marketplace is live")
-                    .description("Buy, sell, and discover useful student listings around your college.")
-                    .imageUrl("https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?auto=format&fit=crop&w=1200&q=80")
-                    .actionLink("/products")
-                    .type(CarouselType.ANNOUNCEMENT)
-                    .displayOrder(1)
-                    .isActive(true)
-                    .targetAudience("all")
-                    .createdBy(CREATED_BY)
-                    .createdAt(Instant.now())
-                    .build());
-        }
+
 
         if (!carouselRepository.existsByTitleAndCollegeIdIsNull("Build your student community")) {
             records.add(Carousel.builder()

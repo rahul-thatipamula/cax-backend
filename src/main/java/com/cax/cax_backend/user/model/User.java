@@ -31,6 +31,7 @@ public class User {
 
     private String name;
     private String picture;
+    private String coverPicture;
 
     @Builder.Default
     private UserRole role = UserRole.STUDENT;
@@ -51,7 +52,16 @@ public class User {
 
     private CollegeDetails collegeDetails;
     private AcademicDetails academicDetails;
-    private WalletEmbedded wallet;
+
+    @Builder.Default
+    private double coins = 0.0;
+
+    @Builder.Default
+    private double totalCoinsEarned = 0.0;
+
+    @Builder.Default
+    private double totalCoinsSpent = 0.0;
+
     private SocialLinks socialLinks;
 
     private String fcmToken;
@@ -61,8 +71,38 @@ public class User {
     private Instant acceptedTermsAt;
 
     @Builder.Default
+    private boolean twoFactorEnabled = false;
+    private String twoFactorSecret;
+
+    @Builder.Default
     private Instant createdAt = Instant.now();
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private List<String> refreshTokens;
 
     private Instant updatedAt;
     private Instant collegeAddedAt;
+
+    @Builder.Default
+    private boolean blocked = false;
+
+    private String blockReason;
+
+    private Instant blockedAt;
+
+    // Premium Subscription details
+    private Instant premiumExpiresAt;
+    private String premiumPack;
+    private String premiumCardTheme;
+    private String premiumMusicLink;
+
+    // CAX Verification details
+    private String caxId;
+    private Instant idCardExpiresAt;
+
+    @Builder.Default
+    private boolean reVerificationRequested = false;
+
+    @Builder.Default
+    private int rejectionCount = 0;
 }

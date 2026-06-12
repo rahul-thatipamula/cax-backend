@@ -8,8 +8,19 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.CORSRule;
+import software.amazon.awssdk.services.s3.model.CORSConfiguration;
+import software.amazon.awssdk.services.s3.model.PutBucketCorsRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
+import javax.annotation.PostConstruct;
 import java.io.IOException;
+import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -18,12 +29,127 @@ import java.util.UUID;
 public class R2StorageService {
 
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
 
     @Value("${r2.bucket-name}")
     private String bucketName;
 
     @Value("${r2.public-url}")
     private String publicUrl;
+
+    @PostConstruct
+    public void initBucketCors() {
+        try {
+            log.info("Initializing Cloudflare R2 bucket CORS settings for bucket: {}", bucketName);
+            
+            CORSRule corsRule = CORSRule.builder()
+                    .allowedHeaders("*")
+                    .allowedMethods("PUT", "GET", "POST", "HEAD", "DELETE")
+                    .allowedOrigins("*")
+                    .exposeHeaders("ETag")
+                    .maxAgeSeconds(3600)
+                    .build();
+
+            CORSConfiguration corsConfiguration = CORSConfiguration.builder()
+                    .corsRules(corsRule)
+                    .build();
+
+            PutBucketCorsRequest putBucketCorsRequest = PutBucketCorsRequest.builder()
+                    .bucket(bucketName)
+                    .corsConfiguration(corsConfiguration)
+                    .build();
+
+            s3Client.putBucketCors(putBucketCorsRequest);
+            log.info("Successfully configured CORS on R2 bucket: {}", bucketName);
+        } catch (Exception e) {
+            log.error("Failed to configure CORS on R2 bucket: {}, error: {}", bucketName, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generates a pre-signed GET URL for secure viewing of files in the private bucket.
+     *
+     * @param fileUrl the public static URL stored in the database
+     * @return a short-lived pre-signed URL to read/download the file
+     */
+    public String generatePresignedGetUrl(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) return fileUrl;
+        try {
+            String base = publicUrl;
+            if (!base.endsWith("/")) {
+                base += "/";
+            }
+            if (!fileUrl.startsWith(base)) {
+                return fileUrl; // Return original if it doesn't match our storage URL base
+            }
+            String key = fileUrl.substring(base.length());
+
+            log.debug("Generating pre-signed GET URL for key: {}", key);
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(15))
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            String presignedUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
+            log.debug("Successfully generated pre-signed GET URL");
+            return presignedUrl;
+        } catch (Exception e) {
+            log.error("Failed to generate pre-signed GET URL for {}", fileUrl, e);
+            return fileUrl;
+        }
+    }
+
+    /**
+     * Generates a pre-signed URL for client-direct uploads to Cloudflare R2 bucket.
+     *
+     * @param folder the bucket folder prefix
+     * @param userId user identifier (optional, can be null or empty)
+     * @param extension file extension (e.g., ".jpg", ".png")
+     * @param contentType file content type (e.g., "image/jpeg")
+     * @return a map containing the "uploadUrl" and the "publicUrl"
+     */
+    public Map<String, String> generatePresignedUploadUrl(String folder, String userId, String extension, String contentType) {
+        String ext = extension.startsWith(".") ? extension : "." + extension;
+        String filename = UUID.randomUUID().toString() + ext;
+        String key = (userId == null || userId.isBlank())
+                ? folder + "/" + filename
+                : folder + "/" + userId + "/" + filename;
+
+        log.debug("Generating pre-signed URL for R2 bucket: {}, key: {}, contentType: {}", bucketName, key, contentType);
+
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .contentType(contentType)
+                .build();
+
+        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(15))
+                .putObjectRequest(putObjectRequest)
+                .build();
+
+        PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
+        String uploadUrl = presignedRequest.url().toString();
+
+        // Construct public URL
+        String base = publicUrl;
+        if (!base.endsWith("/")) {
+            base += "/";
+        }
+        String finalUrl = base + key;
+        
+        log.info("Successfully generated pre-signed URL: {}", uploadUrl);
+        return Map.of(
+                "uploadUrl", uploadUrl,
+                "publicUrl", finalUrl
+        );
+    }
 
     /**
      * Uploads a MultipartFile to Cloudflare R2 bucket.
@@ -92,6 +218,79 @@ public class R2StorageService {
             log.info("Successfully deleted file from R2. key: {}", key);
         } catch (Exception e) {
             log.error("Failed to delete file from R2: {}", fileUrl, e);
+        }
+    }
+
+    /**
+     * Renames an uploaded ID card file to the format `{email}_{idCardNumber}.{ext}`.
+     * Copy-deletes the file in the R2 bucket.
+     */
+    public String renameFileToEmailAndIdCardNumber(String fileUrl, String email, String idCardNumber) {
+        if (fileUrl == null || fileUrl.isBlank() || email == null || idCardNumber == null) return fileUrl;
+
+        try {
+            String base = publicUrl;
+            if (!base.endsWith("/")) {
+                base += "/";
+            }
+            if (!fileUrl.startsWith(base)) {
+                log.warn("Cannot rename file: URL does not match R2 public URL. url={}", fileUrl);
+                return fileUrl;
+            }
+            String sourceKey = fileUrl.substring(base.length());
+
+            // Extract extension
+            String extension = "";
+            int dotIdx = sourceKey.lastIndexOf('.');
+            if (dotIdx != -1) {
+                extension = sourceKey.substring(dotIdx);
+            }
+
+            // Sanitize email and idCardNumber for filename
+            String sanitizedEmail = email.replaceAll("[^a-zA-Z0-9.\\-_@]", "_");
+            String sanitizedIdCard = idCardNumber.replaceAll("[^a-zA-Z0-9.\\-_]", "_");
+            String targetFilename = sanitizedEmail + "_" + sanitizedIdCard + extension;
+
+            // Keep the folder structure (e.g. "id-cards/userId/")
+            String folder = "";
+            int slashIdx = sourceKey.lastIndexOf('/');
+            if (slashIdx != -1) {
+                folder = sourceKey.substring(0, slashIdx + 1);
+            } else {
+                folder = "id-cards/";
+            }
+            String targetKey = folder + targetFilename;
+
+            // Avoid renaming if already correct
+            if (sourceKey.equals(targetKey)) {
+                return fileUrl;
+            }
+
+            log.info("Renaming R2 file from {} to {}", sourceKey, targetKey);
+
+            // Copy object (copySource must be bucket/key in S3 SDK v2)
+            String copySource = bucketName + "/" + sourceKey;
+            software.amazon.awssdk.services.s3.model.CopyObjectRequest copyRequest = 
+                software.amazon.awssdk.services.s3.model.CopyObjectRequest.builder()
+                    .copySource(copySource)
+                    .destinationBucket(bucketName)
+                    .destinationKey(targetKey)
+                    .build();
+
+            s3Client.copyObject(copyRequest);
+
+            // Delete original object
+            s3Client.deleteObject(software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(sourceKey)
+                    .build());
+
+            String finalUrl = base + targetKey;
+            log.info("Successfully renamed file. New URL: {}", finalUrl);
+            return finalUrl;
+        } catch (Exception e) {
+            log.error("Failed to rename file from {} to email {} and id {}", fileUrl, email, idCardNumber, e);
+            return fileUrl;
         }
     }
 }

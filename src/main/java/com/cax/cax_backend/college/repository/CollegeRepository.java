@@ -7,4 +7,6 @@ import java.util.List;
 public interface CollegeRepository extends MongoRepository<College, String> {
     List<College> findByIsActiveTrue();
     List<College> findByCollegeNameContainingIgnoreCase(String name);
+    boolean existsByCollegeCodeIgnoreCase(String collegeCode);
+    boolean existsByCollegeNameIgnoreCase(String collegeName);
 }

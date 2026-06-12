@@ -7,6 +7,7 @@ import com.cax.cax_backend.club.service.ClubService;
 import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
+import com.cax.cax_backend.notification.repository.NotificationRepository;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +28,7 @@ public class ClubController {
 
     private final ClubService clubService;
     private final UserService userService;
+    private final NotificationRepository notificationRepository;
 
     @Data
     @Builder
@@ -37,6 +39,7 @@ public class ClubController {
         private String userRole; // "President", "Vice President", "Member", etc. (null if not member)
         private String joinRequestStatus; // "PENDING", "ACCEPTED", "REJECTED" (null if no request)
         private List<String> userPermissions;
+        private long unreadChatCount;
     }
 
     @Data
@@ -65,7 +68,11 @@ public class ClubController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Club>>> getClubs(Authentication auth, @RequestParam(required = false) String collegeId) {
+    public ResponseEntity<ApiResponse<List<Club>>> getClubs(
+            Authentication auth,
+            @RequestParam(required = false) String collegeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
         String finalCollegeId = collegeId;
         if (finalCollegeId == null || finalCollegeId.isBlank()) {
             String userId = (String) auth.getPrincipal();
@@ -79,23 +86,18 @@ public class ClubController {
             return ResponseEntity.ok(ApiResponse.success(List.of()));
         }
         
-        return ResponseEntity.ok(ApiResponse.success(clubService.getClubsByCollege(finalCollegeId)));
+        return ResponseEntity.ok(ApiResponse.success(clubService.getClubsByCollege(finalCollegeId, page, size)));
     }
 
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<List<Club>>> getMyClubs(Authentication auth) {
         String userId = (String) auth.getPrincipal();
         List<ClubMember> memberships = clubService.getUserMemberships(userId);
-        List<Club> myClubs = memberships.stream()
-                .map(m -> {
-                    try {
-                        return clubService.getClubById(m.getClubId());
-                    } catch (Exception e) {
-                        return null;
-                    }
-                })
-                .filter(c -> c != null)
+        List<String> clubIds = memberships.stream()
+                .map(ClubMember::getClubId)
+                .filter(id -> id != null && !id.isBlank())
                 .toList();
+        List<Club> myClubs = clubService.getClubsByIds(clubIds);
         return ResponseEntity.ok(ApiResponse.success(myClubs));
     }
 
@@ -110,9 +112,7 @@ public class ClubController {
             throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You cannot access a club from another college.");
         }
         
-        Optional<ClubMember> membership = clubService.getClubMembers(clubId).stream()
-                .filter(m -> userId.equals(m.getUserId()))
-                .findFirst();
+        Optional<ClubMember> membership = clubService.getClubMember(clubId, userId);
         
         Optional<ClubJoinRequest> joinRequest = clubService.getUserJoinRequest(clubId, userId);
 
@@ -120,20 +120,27 @@ public class ClubController {
         if (membership.isPresent()) {
             ClubMember m = membership.get();
             if ("President".equalsIgnoreCase(m.getRole()) || "Vice President".equalsIgnoreCase(m.getRole())) {
-                permissions = List.of("manage_events", "manage_members", "manage_settings", "manage_posts");
+                permissions = List.of("manage_events", "manage_members", "manage_settings", "manage_posts", "manage_memories");
             } else {
                 permissions = m.getAccessControls();
                 if (permissions == null) {
                     permissions = List.of();
                 }
             }
-        } else {
-            // Check system-level bypasses for guests
+        }
+        // Non-members get no permissions — they must join the club first
+
+        long unreadCount = 0;
+        if (membership.isPresent()) {
             try {
-                if (user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN || (user.getRole() == com.cax.cax_backend.common.enums.UserRole.SUPER_STUDENT && user.isIdVerified())) {
-                    permissions = List.of("manage_events", "manage_members", "manage_settings", "manage_posts");
-                }
-            } catch (Exception e) {}
+                unreadCount = notificationRepository.countUnreadChatNotifications(
+                    userId,
+                    com.cax.cax_backend.common.enums.NotificationEnums.NotificationType.CLUB_CHAT,
+                    clubId
+                );
+            } catch (Exception e) {
+                // Ignore or log
+            }
         }
 
         ClubDetailResponse response = ClubDetailResponse.builder()
@@ -141,6 +148,7 @@ public class ClubController {
                 .userRole(membership.map(ClubMember::getRole).orElse(null))
                 .joinRequestStatus(joinRequest.map(ClubJoinRequest::getStatus).orElse(null))
                 .userPermissions(permissions)
+                .unreadChatCount(unreadCount)
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -288,5 +296,29 @@ public class ClubController {
                 request.getCoverPhoto()
         );
         return ResponseEntity.ok(ApiResponse.success("Club profile updated successfully", updated));
+    }
+
+    @PostMapping("/{clubId}/memories")
+    public ResponseEntity<ApiResponse<Club>> uploadMemory(
+            Authentication auth,
+            @PathVariable String clubId,
+            @RequestBody Map<String, String> body) {
+        String userId = (String) auth.getPrincipal();
+        String imageUrl = body.get("imageUrl");
+        if (imageUrl == null || imageUrl.isBlank()) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("imageUrl is required");
+        }
+        Club updated = clubService.uploadMemory(userId, clubId, imageUrl);
+        return ResponseEntity.ok(ApiResponse.success("Memory uploaded successfully", updated));
+    }
+
+    @DeleteMapping("/{clubId}/memories")
+    public ResponseEntity<ApiResponse<Club>> deleteMemory(
+            Authentication auth,
+            @PathVariable String clubId,
+            @RequestParam String imageUrl) {
+        String userId = (String) auth.getPrincipal();
+        Club updated = clubService.deleteMemory(userId, clubId, imageUrl);
+        return ResponseEntity.ok(ApiResponse.success("Memory deleted successfully", updated));
     }
 }

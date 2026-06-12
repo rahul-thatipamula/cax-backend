@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface EventParticipantRepository extends MongoRepository<EventParticipant, String> {
     List<EventParticipant> findByEventId(String eventId);
     Optional<EventParticipant> findByEventIdAndUserId(String eventId, String userId);
+    List<EventParticipant> findByUserId(String userId);
     List<EventParticipant> findByEventIdAndStatus(String eventId, String status);
     boolean existsByEventIdAndUserId(String eventId, String userId);
     Optional<EventParticipant> findByEventIdAndTicketCode(String eventId, String ticketCode);

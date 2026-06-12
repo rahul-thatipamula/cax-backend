@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -15,6 +17,9 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "event_participants")
+@CompoundIndexes({
+    @CompoundIndex(name = "event_user_idx", def = "{'eventId': 1, 'userId': 1}", unique = true)
+})
 public class EventParticipant {
     @Id
     private String id;
@@ -51,6 +56,11 @@ public class EventParticipant {
     private boolean checkedIn = false;
 
     private Instant checkedInAt;
+
+    @Builder.Default
+    private boolean suspicious = false;
+
+    private String suspiciousNote;
 
     @Builder.Default
     private Instant registeredAt = Instant.now();

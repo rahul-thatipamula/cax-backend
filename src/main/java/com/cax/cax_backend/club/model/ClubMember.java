@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -16,6 +18,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "club_members")
+@CompoundIndexes({
+    @CompoundIndex(name = "club_user_idx", def = "{'clubId': 1, 'userId': 1}", unique = true)
+})
 public class ClubMember {
     @Id
     private String id;
@@ -38,4 +43,7 @@ public class ClubMember {
 
     @Builder.Default
     private Instant joinedAt = Instant.now();
+
+    @Builder.Default
+    private boolean isMuted = false;
 }

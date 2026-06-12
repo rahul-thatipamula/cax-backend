@@ -31,13 +31,16 @@ public class SecurityConfig {
                                 "/health",
                                 "/api/auth/google",
                                 "/api/auth/generate-test-token",
+                                "/api/auth/refresh",
                                 "/api/auth/qr/**",
+                                "/api/auth/2fa/login-verify",
                                 "/api/version/**",
                                 "/api/colleges",
                                 "/api/newsletter/subscribe",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                "/ws/chat"
                         ).permitAll()
                         // All other endpoints require authentication
                         .anyRequest().authenticated()

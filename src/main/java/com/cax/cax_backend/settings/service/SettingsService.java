@@ -22,7 +22,8 @@ public class SettingsService {
      * Fetch user settings, creating defaults if they don't exist
      */
     public UserSettings getSettings(String userId) {
-        return settingsRepository.findByUserId(userId).orElseGet(() -> {
+        java.util.List<UserSettings> settingsList = settingsRepository.findAllByUserId(userId);
+        if (settingsList.isEmpty()) {
             // Create default settings if they don't exist
             UserSettings defaultSettings = UserSettings.builder()
                     .userId(userId)
@@ -39,7 +40,18 @@ public class SettingsService {
                     .updatedAt(Instant.now())
                     .build();
             return settingsRepository.save(defaultSettings);
-        });
+        } else {
+            UserSettings primarySettings = settingsList.get(0);
+            if (settingsList.size() > 1) {
+                // Remove all duplicate settings documents to clean up the DB
+                for (int i = 1; i < settingsList.size(); i++) {
+                    try {
+                        settingsRepository.delete(settingsList.get(i));
+                    } catch (Exception ignored) {}
+                }
+            }
+            return primarySettings;
+        }
     }
 
     /**
