@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
+import com.cax.cax_backend.common.annotation.AdminActivityLog;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ public class CarouselController {
 
     @CacheEvict(value = "carousels", allEntries = true)
     @PostMapping
+    @AdminActivityLog(action = "Create Carousel Banner")
     public ResponseEntity<ApiResponse<Carousel>> create(@RequestBody Carousel body) {
         return ResponseEntity.ok(ApiResponse.created("Carousel created", repo.save(body)));
     }
@@ -61,6 +63,7 @@ public class CarouselController {
 
     @CacheEvict(value = "carousels", allEntries = true)
     @PutMapping("/{id}")
+    @AdminActivityLog(action = "Update Carousel Banner", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<Carousel>> update(@PathVariable String id, @RequestBody Carousel body) {
         Carousel carousel = repo.findById(id).orElseThrow();
         carousel.setTitle(body.getTitle());
@@ -81,6 +84,7 @@ public class CarouselController {
 
     @CacheEvict(value = "carousels", allEntries = true)
     @DeleteMapping("/{id}")
+    @AdminActivityLog(action = "Delete Carousel Banner", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable String id) {
         repo.deleteById(id);
         return ResponseEntity.ok(ApiResponse.success("Carousel deleted"));
@@ -88,6 +92,7 @@ public class CarouselController {
 
     @CacheEvict(value = "carousels", allEntries = true)
     @PutMapping("/{id}/toggle")
+    @AdminActivityLog(action = "Toggle Carousel Banner Status", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<Carousel>> toggleActive(@PathVariable String id) {
         Carousel carousel = repo.findById(id).orElseThrow();
         carousel.setActive(!carousel.isActive());

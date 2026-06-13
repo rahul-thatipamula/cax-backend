@@ -39,10 +39,11 @@ public class NotificationController {
     @PostMapping("/send-custom")
     public ResponseEntity<ApiResponse<Void>> sendCustomNotification(
             @RequestBody Map<String, Object> body) {
-        String targetType = (String) body.get("targetType"); // "ALL" or "INDIVIDUAL"
+        String targetType = (String) body.get("targetType"); // "ALL", "INDIVIDUAL", or "COLLEGE"
         String title = (String) body.get("title");
         String bodyText = (String) body.get("body");
         String userId = (String) body.get("userId"); // Required if INDIVIDUAL
+        String collegeId = (String) body.get("collegeId"); // Required if COLLEGE
         Map<String, String> data = (Map<String, String>) body.get("data");
 
         if (title == null || title.isBlank() || bodyText == null || bodyText.isBlank()) {
@@ -56,6 +57,11 @@ public class NotificationController {
             service.createNotification(userId, title, bodyText, NotificationEnums.NotificationType.SYSTEM, data);
         } else if ("ALL".equalsIgnoreCase(targetType)) {
             service.sendNotificationToAll(title, bodyText, NotificationEnums.NotificationType.SYSTEM, data);
+        } else if ("COLLEGE".equalsIgnoreCase(targetType)) {
+            if (collegeId == null || collegeId.isBlank()) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("collegeId is required for COLLEGE targetType", 1400, 400));
+            }
+            service.sendNotificationToCollege(collegeId, title, bodyText, NotificationEnums.NotificationType.SYSTEM, data);
         } else {
             return ResponseEntity.badRequest().body(ApiResponse.error("Invalid targetType", 1400, 400));
         }

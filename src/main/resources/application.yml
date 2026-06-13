@@ -1,6 +1,9 @@
 server:
   port: 8080
 
+app:
+  env: ${APP_ENV:production}
+
 spring:
   application:
     name: cax_backend

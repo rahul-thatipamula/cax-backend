@@ -8,6 +8,7 @@ import com.cax.cax_backend.college.model.College;
 import com.cax.cax_backend.common.exception.AuthException;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +22,9 @@ public class AuthController {
 
     private final AuthService authService;
     private final JwtUtil jwtUtil;
+
+    @Value("${app.env:production}")
+    private String appEnv;
 
     @PostMapping("/google")
     public ResponseEntity<Map<String, Object>> googleLogin(@RequestBody Map<String, String> body) {
@@ -44,6 +48,28 @@ public class AuthController {
             return ResponseEntity.status(500).body(Map.of("error", "Google login failed: " + e.getMessage(), "success", false));
         }
     }
+
+    @PostMapping("/web-login")
+    public ResponseEntity<Map<String, Object>> webLogin(@RequestBody Map<String, String> body) {
+        String token = body.get("token");
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Google ID token is required"));
+        }
+        String idToken = token.replaceFirst("(?i)^Bearer\\s+", "").trim();
+        try {
+            Map<String, Object> result = authService.handleWebGoogleLogin(idToken);
+            return ResponseEntity.ok(result);
+        } catch (AuthException.InvalidTokenException e) {
+            return ResponseEntity.status(401).body(Map.of("error", e.getMessage(), "success", false));
+        } catch (AuthException.ForbiddenException e) {
+            return ResponseEntity.status(403).body(Map.of("error", e.getMessage(), "success", false));
+        } catch (AuthException.UserNotFoundException e) {
+            return ResponseEntity.status(404).body(Map.of("error", e.getMessage(), "success", false));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Login failed: " + e.getMessage(), "success", false));
+        }
+    }
+
 
     @PostMapping("/college")
     public ResponseEntity<Map<String, Object>> addCollegeDetails(
@@ -110,6 +136,9 @@ public class AuthController {
 
     @GetMapping("/generate-test-token")
     public ResponseEntity<Map<String, Object>> generateTestToken(@RequestParam String userId) {
+        if ("production".equalsIgnoreCase(appEnv)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Bypass token generation is disabled in production.", "success", false));
+        }
         return ResponseEntity.ok(authService.generateTestToken(userId));
     }
 

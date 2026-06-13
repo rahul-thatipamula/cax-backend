@@ -7,7 +7,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Google Auth configuration — defines the GoogleIdTokenVerifier bean.
@@ -20,8 +22,12 @@ public class GoogleAuthConfig {
 
     @Bean
     public GoogleIdTokenVerifier googleIdTokenVerifier() {
+        List<String> clientIds = Arrays.stream(googleClientId.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
         return new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
-                .setAudience(Collections.singletonList(googleClientId))
+                .setAudience(clientIds)
                 .build();
     }
 }

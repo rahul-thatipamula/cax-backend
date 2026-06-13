@@ -1,5 +1,6 @@
 package com.cax.cax_backend.settings.controller;
 
+import com.cax.cax_backend.common.annotation.AdminActivityLog;
 import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.settings.model.SystemSetting;
 import com.cax.cax_backend.settings.service.SystemSettingService;
@@ -23,6 +24,7 @@ public class SystemSettingController {
     }
 
     @PostMapping("/toggle-college-emails")
+    @AdminActivityLog(action = "Toggle Only Allow College Emails", resourceIdParam = "enabled")
     public ResponseEntity<ApiResponse<SystemSetting>> toggleOnlyAllowCollegeEmails(
             Authentication auth,
             @RequestParam boolean enabled) {

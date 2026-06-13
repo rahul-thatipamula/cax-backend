@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cax.cax_backend.common.annotation.AdminActivityLog;
+
 import com.cax.cax_backend.bugreport.model.BugReport;
 import com.cax.cax_backend.bugreport.service.BugReportService;
 import com.cax.cax_backend.common.dto.ApiResponse;
@@ -93,6 +95,7 @@ public class BugReportController {
      * PUT /api/bug-reports/{id}/status - Update bug report status (admin only)
      */
     @PutMapping("/{id}/status")
+    @AdminActivityLog(action = "Update Bug Status", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<BugReport>> updateStatus(
             @PathVariable String id,
             @RequestBody Map<String, String> body) {
@@ -109,6 +112,7 @@ public class BugReportController {
      * PUT /api/bug-reports/{id}/severity - Update bug report severity (admin only)
      */
     @PutMapping("/{id}/severity")
+    @AdminActivityLog(action = "Update Bug Severity", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<BugReport>> updateSeverity(
             @PathVariable String id,
             @RequestBody Map<String, String> body) {
@@ -123,6 +127,7 @@ public class BugReportController {
      * PUT /api/bug-reports/{id}/assign - Assign bug report (admin only)
      */
     @PutMapping("/{id}/assign")
+    @AdminActivityLog(action = "Assign Bug Report", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<BugReport>> assignBugReport(
             @PathVariable String id,
             @RequestBody Map<String, String> body) {
@@ -135,6 +140,7 @@ public class BugReportController {
      * DELETE /api/bug-reports/{id} - Delete a bug report (admin only)
      */
     @DeleteMapping("/{id}")
+    @AdminActivityLog(action = "Delete Bug Report", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<Void>> deleteBugReport(@PathVariable String id) {
         bugReportService.deleteBugReport(id);
         return ResponseEntity.ok(ApiResponse.success("Bug report deleted successfully"));

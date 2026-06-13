@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cax.cax_backend.common.dto.ApiResponse;
+import com.cax.cax_backend.common.annotation.AdminActivityLog;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
 
@@ -59,6 +60,7 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/block")
+    @AdminActivityLog(action = "Block User", resourceIdParam = "userId")
     public ResponseEntity<ApiResponse<User>> blockUser(
             @PathVariable String userId,
             @RequestParam boolean blocked,
@@ -74,6 +76,7 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/role")
+    @AdminActivityLog(action = "Update User Role", resourceIdParam = "userId")
     public ResponseEntity<ApiResponse<User>> updateUserRole(
             @PathVariable String userId,
             @RequestParam String role,
