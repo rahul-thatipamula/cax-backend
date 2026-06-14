@@ -10,4 +10,6 @@ import java.util.List;
 @Repository
 public interface ClubMessageRepository extends MongoRepository<ClubMessage, String> {
     List<ClubMessage> findByClubIdOrderByCreatedAtDesc(String clubId, Pageable pageable);
+    List<ClubMessage> findBySenderId(String senderId);
+    List<ClubMessage> findByReplyToIdIn(List<String> replyToIds);
 }

@@ -63,13 +63,7 @@ public class AuthService {
             // Verify Google ID token
             GoogleIdToken decodedToken = googleIdTokenVerifier.verify(googleIdTokenStr);
             if (decodedToken == null) {
-                // Fallback: attempt payload‑only parse (no signature verification) to still obtain user info
-                try {
-                    decodedToken = GoogleIdToken.parse(googleIdTokenVerifier.getJsonFactory(), googleIdTokenStr);
-                    log.warn("Google token verification failed (signature), but payload was parsed. Proceeding with payload only.");
-                } catch (Exception parseEx) {
-                    throw new AuthException.InvalidTokenException("Google ID token verification and parsing failed");
-                }
+                throw new AuthException.InvalidTokenException("Google ID token signature verification failed");
             }
 
             GoogleIdToken.Payload payload = decodedToken.getPayload();
@@ -126,6 +120,9 @@ public class AuthService {
                     user.setGoogleId(uid);
                     user.setAcceptedTerms(acceptedTerms);
                     user.setAcceptedTermsAt(Instant.now());
+                    user.setOnline(true);
+                    user.setLastLoginAt(Instant.now());
+                    user.setLastSeenAt(Instant.now());
                     user.setUpdatedAt(Instant.now());
                     user = userRepository.save(user);
                     log.info("Linked existing user by email: {}, new googleId: {}", user.getUserId(), uid);
@@ -142,6 +139,9 @@ public class AuthService {
                             .idVerified(false)
                             .acceptedTerms(acceptedTerms)
                             .acceptedTermsAt(Instant.now())
+                            .isOnline(true)
+                            .lastLoginAt(Instant.now())
+                            .lastSeenAt(Instant.now())
                             .build();
                     user = userRepository.save(user);
                     log.info("New user created: {}", uid);
@@ -156,14 +156,17 @@ public class AuthService {
                     user.setAcceptedTerms(true);
                     user.setAcceptedTermsAt(Instant.now());
                     user.setUpdatedAt(Instant.now());
-                    user = userRepository.save(user);
                 }
                 // Update picture if changed
                 if (picture != null && !picture.equals(user.getPicture())) {
                     user.setPicture(picture);
                     user.setUpdatedAt(Instant.now());
-                    user = userRepository.save(user);
                 }
+                // Track login
+                user.setOnline(true);
+                user.setLastLoginAt(Instant.now());
+                user.setLastSeenAt(Instant.now());
+                user = userRepository.save(user);
                 log.info("Existing user logged in: {}", user.getUserId());
             }
 
@@ -224,6 +227,145 @@ public class AuthService {
             throw new AuthException.InvalidTokenException("Google login failed: " + e.getMessage());
         }
     }
+
+    /**
+     * Web login via email checking.
+     */
+    public Map<String, Object> handleWebLogin(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AuthException.UserNotFoundException(email));
+
+        // Generate JWT using the user's permanent userId (Google sub)
+        boolean isAdmin = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+        
+        if (user.isTwoFactorEnabled()) {
+            String tempToken = jwtUtil.generateTemp2FaToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("twoFactorRequired", true);
+            result.put("tempToken", tempToken);
+            result.put("message", "Two-factor authentication required");
+            return result;
+        }
+
+        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+
+        // Save refresh token to user
+        if (user.getRefreshTokens() == null) {
+            user.setRefreshTokens(new java.util.ArrayList<>());
+        }
+        user.getRefreshTokens().add(refreshToken);
+        
+        // Track login
+        user.setOnline(true);
+        user.setLastLoginAt(Instant.now());
+        user.setLastSeenAt(Instant.now());
+        user.setUpdatedAt(Instant.now());
+        
+        userRepository.save(user);
+
+        // Determine redirect
+        String redirect;
+        String message;
+        if (!user.isCollegeDetailsAdded()) {
+            redirect = "/college";
+            message = "College details missing. Please complete profile.";
+        } else if (!user.isAcademicDetailsAdded()) {
+            redirect = "/academic";
+            message = "Academic details missing. Please complete profile.";
+        } else {
+            redirect = "/app";
+            message = "Login Successful.";
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("token", token);
+        result.put("refreshToken", refreshToken);
+        result.put("userId", user.getUserId());
+        result.put("message", message);
+        result.put("redirect", redirect);
+        result.put("user", user);
+        result.put("isNewUser", false);
+        return result;
+    }
+
+
+    /**
+     * Web login via Google ID Token (verifying OAuth token and admin role).
+     */
+    public Map<String, Object> handleWebGoogleLogin(String googleIdTokenStr) {
+        try {
+            // Normalise token: strip optional "Bearer " prefix sent by some clients
+            if (googleIdTokenStr != null && googleIdTokenStr.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                googleIdTokenStr = googleIdTokenStr.substring(7).trim();
+            }
+            // Verify Google ID token
+            GoogleIdToken decodedToken = googleIdTokenVerifier.verify(googleIdTokenStr);
+            if (decodedToken == null) {
+                throw new AuthException.InvalidTokenException("Google ID token verification failed");
+            }
+
+            GoogleIdToken.Payload payload = decodedToken.getPayload();
+            String email = payload.getEmail();
+            if (email != null) {
+                email = email.toLowerCase().trim();
+            }
+            if (email == null || email.isBlank()) {
+                throw new AuthException.InvalidTokenException("Email not found in token");
+            }
+
+            // Find existing user by email
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new AuthException.UserNotFoundException("Please register an account via the mobile app first."));
+
+            // Check if the user has Admin privileges
+            boolean isAdmin = user.getRole() == UserRole.ADMIN 
+                    || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+            
+            if (!isAdmin) {
+                throw new AuthException.ForbiddenException("Access Denied: You do not have admin permissions.");
+            }
+
+            String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+            String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+
+            // Save refresh token to user
+            if (user.getRefreshTokens() == null) {
+                user.setRefreshTokens(new java.util.ArrayList<>());
+            }
+            user.getRefreshTokens().add(refreshToken);
+            
+            // Track login
+            user.setOnline(true);
+            user.setLastLoginAt(Instant.now());
+            user.setLastSeenAt(Instant.now());
+            user.setUpdatedAt(Instant.now());
+
+            userRepository.save(user);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("token", token);
+            result.put("refreshToken", refreshToken);
+            result.put("userId", user.getUserId());
+            result.put("user", Map.of(
+                    "id", user.getUserId(),
+                    "email", user.getEmail(),
+                    "name", user.getName() != null ? user.getName() : "User",
+                    "role", user.getRole().getValue()
+            ));
+            result.put("message", "Web login successful");
+            return result;
+        } catch (AuthException.InvalidTokenException | AuthException.ForbiddenException | AuthException.UserNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Google Web login failed: {}", e.getMessage(), e);
+            throw new AuthException.InvalidTokenException("Google Web login failed: " + e.getMessage());
+        }
+    }
+
 
     /**
      * Get user by JWT token.
@@ -432,6 +574,13 @@ public class AuthService {
             user.setRefreshTokens(new java.util.ArrayList<>());
         }
         user.getRefreshTokens().add(refreshToken);
+        
+        // Track login
+        user.setOnline(true);
+        user.setLastLoginAt(Instant.now());
+        user.setLastSeenAt(Instant.now());
+        user.setUpdatedAt(Instant.now());
+
         userRepository.save(user);
 
         Map<String, Object> result = new HashMap<>();
@@ -504,6 +653,8 @@ public class AuthService {
             String userId = jwtUtil.extractUserId(token);
             userRepository.findByUserId(userId).ifPresent(user -> {
                 user.setRefreshTokens(new java.util.ArrayList<>());
+                user.setOnline(false);
+                user.setLastLogoutAt(Instant.now());
                 userRepository.save(user);
             });
         } catch (Exception e) {
@@ -607,6 +758,13 @@ public class AuthService {
             user.setRefreshTokens(new java.util.ArrayList<>());
         }
         user.getRefreshTokens().add(refreshToken);
+        
+        // Track login
+        user.setOnline(true);
+        user.setLastLoginAt(Instant.now());
+        user.setLastSeenAt(Instant.now());
+        user.setUpdatedAt(Instant.now());
+
         userRepository.save(user);
 
         // Determine redirect

@@ -4,6 +4,9 @@ import com.cax.cax_backend.ad.model.Ad;
 import com.cax.cax_backend.ad.model.UserAdTracking;
 import com.cax.cax_backend.ad.repository.AdRepository;
 import com.cax.cax_backend.ad.repository.UserAdTrackingRepository;
+import com.cax.cax_backend.ad.dto.UserAdAnalyticsDto;
+import com.cax.cax_backend.user.model.User;
+import com.cax.cax_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,7 @@ public class AdService {
 
     private final AdRepository adRepository;
     private final UserAdTrackingRepository userAdTrackingRepository;
+    private final UserRepository userRepository;
 
     /**
      * Returns the best active ad for the given user.
@@ -66,11 +70,81 @@ public class AdService {
                     .userId(userId)
                     .adId(adId)
                     .viewCount(1)
+                    .clickCount(0)
                     .lastViewedAt(Instant.now())
                     .build();
         }
 
         userAdTrackingRepository.save(tracking);
+
+        adRepository.findById(adId).ifPresent(ad -> {
+            ad.setTotalImpressions(ad.getTotalImpressions() + 1);
+            adRepository.save(ad);
+        });
+    }
+
+    /**
+     * Record a click for an ad and returns its redirect URL.
+     */
+    public String recordClick(String userId, String adId) {
+        Ad ad = adRepository.findById(adId)
+                .orElseThrow(() -> new IllegalArgumentException("Ad not found: " + adId));
+        
+        ad.setTotalClicks(ad.getTotalClicks() + 1);
+        adRepository.save(ad);
+
+        if (userId != null && !userId.isBlank()) {
+            Optional<UserAdTracking> existing = userAdTrackingRepository
+                    .findByUserIdAndAdId(userId, adId);
+            UserAdTracking tracking;
+            if (existing.isPresent()) {
+                tracking = existing.get();
+                tracking.setClickCount(tracking.getClickCount() + 1);
+                tracking.setLastClickedAt(Instant.now());
+            } else {
+                tracking = UserAdTracking.builder()
+                        .userId(userId)
+                        .adId(adId)
+                        .viewCount(0)
+                        .clickCount(1)
+                        .lastClickedAt(Instant.now())
+                        .build();
+            }
+            userAdTrackingRepository.save(tracking);
+        }
+        
+        String url = ad.getRedirectUrl();
+        return (url != null && !url.isBlank()) ? url : "/";
+    }
+
+    /**
+     * Retrieve user-level detailed analytics for a campaign.
+     */
+    public List<UserAdAnalyticsDto> getAdAnalytics(String adId) {
+        List<UserAdTracking> trackings = userAdTrackingRepository.findByAdId(adId);
+        List<UserAdAnalyticsDto> result = new ArrayList<>();
+        
+        for (UserAdTracking tracking : trackings) {
+            String userName = "Unknown User";
+            String userEmail = "N/A";
+            
+            Optional<User> userOpt = userRepository.findByUserId(tracking.getUserId());
+            if (userOpt.isPresent()) {
+                userName = userOpt.get().getName();
+                userEmail = userOpt.get().getEmail();
+            }
+            
+            result.add(UserAdAnalyticsDto.builder()
+                    .userId(tracking.getUserId())
+                    .userName(userName)
+                    .userEmail(userEmail)
+                    .viewCount(tracking.getViewCount())
+                    .clickCount(tracking.getClickCount())
+                    .lastViewedAt(tracking.getLastViewedAt())
+                    .lastClickedAt(tracking.getLastClickedAt())
+                    .build());
+        }
+        return result;
     }
 
     // ── Admin CRUD ──────────────────────────────────────────────────────────

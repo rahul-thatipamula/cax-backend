@@ -66,6 +66,13 @@ public class User {
 
     private String fcmToken;
 
+    private Instant lastSeenFeedAt;
+    private Instant lastNotificationSentAt;
+
+    private Instant lastLoginAt;
+    private Instant lastLogoutAt;
+    private Instant lastSeenAt;
+
     @Builder.Default
     private boolean acceptedTerms = false;
     private Instant acceptedTermsAt;

@@ -101,9 +101,14 @@ public class StudentPostController {
 
     @GetMapping("/feed")
     public ResponseEntity<ApiResponse<List<StudentPost>>> getFeed(
+            Authentication auth,
             @RequestParam(required = false) String collegeId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() != null && page == 0) {
+            String userId = (String) auth.getPrincipal();
+            studentPostService.updateLastSeenFeed(userId);
+        }
         return ResponseEntity.ok(ApiResponse.success(studentPostService.getFeed(collegeId, page, size)));
     }
 

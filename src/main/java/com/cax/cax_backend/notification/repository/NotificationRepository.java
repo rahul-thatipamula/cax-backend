@@ -15,4 +15,7 @@ public interface NotificationRepository extends MongoRepository<Notification, St
 
     @Query("{ 'userId': ?0, 'type': ?1, 'read': false, 'data.clubId': ?2 }")
     List<Notification> findUnreadChatNotifications(String userId, NotificationType type, String clubId);
+
+    @Query("{ 'data.actorId': ?0 }")
+    List<Notification> findByActorId(String actorId);
 }

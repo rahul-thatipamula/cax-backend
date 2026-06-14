@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Async;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -245,5 +246,17 @@ public class StudentPostService {
     public List<StudentPost> getActivePostsByUserId(String userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return studentPostRepository.findActiveByUserId(userId, pageable);
+    }
+
+    @Async("taskExecutor")
+    public void updateLastSeenFeed(String userId) {
+        try {
+            userService.getUserOptByUserId(userId).ifPresent(user -> {
+                user.setLastSeenFeedAt(Instant.now());
+                userService.saveUser(user);
+            });
+        } catch (Exception e) {
+            log.error("Failed to update last seen feed for user: {}, error: {}", userId, e.getMessage());
+        }
     }
 }

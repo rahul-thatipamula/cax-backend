@@ -2,6 +2,7 @@ package com.cax.cax_backend.security;
 
 import com.cax.cax_backend.common.exception.BaseException;
 import com.cax.cax_backend.common.util.JwtUtil;
+import com.cax.cax_backend.user.service.UserActivityService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -27,6 +28,7 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final UserActivityService userActivityService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -55,6 +57,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (userId == null) {
                 userId = claims.getSubject();
             }
+            
+            // Record last seen activity asynchronously
+            userActivityService.updateLastSeen(userId);
+            
             String role = claims.get("role", String.class);
             Boolean isAdmin = claims.get("isAdmin", Boolean.class);
 

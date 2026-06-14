@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.domain.Pageable;
 import java.util.List;
+import java.time.Instant;
 
 @Repository
 public interface StudentPostRepository extends MongoRepository<StudentPost, String> {
@@ -25,4 +26,7 @@ public interface StudentPostRepository extends MongoRepository<StudentPost, Stri
 
     List<StudentPost> findByUserId(String userId);
     List<StudentPost> findByCommentsUserId(String userId);
+
+    @Query(value = "{ 'collegeId': ?0, 'disabled': { $ne: true }, 'createdAt': { $gt: ?1 } }", count = true)
+    long countActiveByCollegeIdSince(String collegeId, Instant timestamp);
 }

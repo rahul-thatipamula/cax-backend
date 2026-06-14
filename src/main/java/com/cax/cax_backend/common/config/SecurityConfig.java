@@ -30,6 +30,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/health",
                                 "/api/auth/google",
+                                "/api/auth/web-login",
                                 "/api/auth/generate-test-token",
                                 "/api/auth/refresh",
                                 "/api/auth/qr/**",
@@ -37,6 +38,7 @@ public class SecurityConfig {
                                 "/api/version/**",
                                 "/api/colleges",
                                 "/api/newsletter/subscribe",
+                                "/api/ads/*/click",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",

@@ -30,5 +30,10 @@ public class UserAdTracking {
     private int viewCount = 0;
 
     @Builder.Default
+    private int clickCount = 0;
+
+    @Builder.Default
     private Instant lastViewedAt = Instant.now();
+
+    private Instant lastClickedAt;
 }

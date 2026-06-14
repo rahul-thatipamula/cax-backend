@@ -42,6 +42,12 @@ public class Ad {
     private int closeTimerSeconds = 0;
 
     @Builder.Default
+    private int totalImpressions = 0;
+
+    @Builder.Default
+    private int totalClicks = 0;
+
+    @Builder.Default
     private Instant createdAt = Instant.now();
 
     private Instant updatedAt;

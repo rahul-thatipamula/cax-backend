@@ -151,4 +151,12 @@ public class UserService {
         }
         return user;
     }
+
+    public User saveUser(User user) {
+        return userRepository.save(user);
+    }
+
+    public java.util.Optional<User> getUserOptByUserId(String userId) {
+        return userRepository.findByUserId(userId);
+    }
 }
