@@ -120,33 +120,4 @@ class EmailServiceTest {
         verify(mailSender, never()).createMimeMessage();
     }
 
-    @Test
-    void testRealSmtp() {
-        org.springframework.mail.javamail.JavaMailSenderImpl impl = new org.springframework.mail.javamail.JavaMailSenderImpl();
-        impl.setHost("smtp.titan.email");
-        impl.setPort(587);
-        impl.setUsername("notification@caxone.in");
-        impl.setPassword("@R1a1h1u1l1@titan");
-        
-        java.util.Properties props = impl.getJavaMailProperties();
-        props.put("mail.transport.protocol", "smtp");
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.starttls.required", "true");
-        
-        try {
-            System.out.println("TEST: Sending message...");
-            jakarta.mail.internet.MimeMessage message = impl.createMimeMessage();
-            org.springframework.mail.javamail.MimeMessageHelper helper = new org.springframework.mail.javamail.MimeMessageHelper(message, true);
-            helper.setFrom("notification@caxone.in");
-            helper.setTo("craftmvp.in@gmail.com");
-            helper.setSubject("Real SMTP Test");
-            helper.setText("This is a real test email from local JVM", false);
-            impl.send(message);
-            System.out.println("TEST: Email sent successfully!");
-        } catch (Exception e) {
-            System.out.println("TEST FAILURE: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
 }

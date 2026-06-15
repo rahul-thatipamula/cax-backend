@@ -57,4 +57,20 @@ public class IDCard {
 
     @org.springframework.data.annotation.Transient
     private Integer rejectionCount;
+
+    @org.springframework.data.annotation.Transient
+    private String verificationStatus;
+
+    @org.springframework.data.annotation.Transient
+    private String documentUrl;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("verificationStatus")
+    public String getVerificationStatus() {
+        return this.status != null ? this.status.name() : null;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("documentUrl")
+    public String getDocumentUrl() {
+        return this.imageUrl;
+    }
 }

@@ -7,6 +7,7 @@ import com.cax.cax_backend.idcard.model.IDCard;
 import com.cax.cax_backend.idcard.repository.IDCardRepository;
 import com.cax.cax_backend.user.repository.UserRepository;
 import com.cax.cax_backend.idcard.event.IDCardStatusChangedEvent;
+import com.cax.cax_backend.common.annotation.AdminActivityLog;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -47,17 +48,22 @@ public class IDCardController {
     }
 
     @GetMapping("/idcard")
-    public ResponseEntity<ApiResponse<IDCard>> getIDCard(Authentication auth) {
+    public ResponseEntity<?> getIDCard(Authentication auth) {
         IDCard card = repo.findByUserId((String) auth.getPrincipal()).orElse(null);
         if (card != null) {
             populateUserDetails(card);
             card.setImageUrl(r2StorageService.generatePresignedGetUrl(card.getImageUrl()));
+            return ResponseEntity.ok(ApiResponse.success(card));
         }
-        return ResponseEntity.ok(ApiResponse.success(card));
+        java.util.Map<String, Object> response = new java.util.HashMap<>();
+        response.put("success", true);
+        response.put("data", null);
+        response.put("statusCode", 200);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/idcard")
-    public ResponseEntity<ApiResponse<IDCard>> saveIDCard(Authentication auth, @RequestBody IDCard body) {
+    public ResponseEntity<IDCard> saveIDCard(Authentication auth, @RequestBody IDCard body) {
         if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
             throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
         }
@@ -103,7 +109,7 @@ public class IDCardController {
         card.setImageUrl(renamedUrl[0]);
         IDCard savedCard = repo.save(card);
         savedCard.setImageUrl(r2StorageService.generatePresignedGetUrl(savedCard.getImageUrl()));
-        return ResponseEntity.ok(ApiResponse.created("ID card saved", savedCard));
+        return ResponseEntity.ok(savedCard);
     }
 
     @PutMapping("/idcard")
@@ -160,6 +166,7 @@ public class IDCardController {
     }
 
     @PostMapping("/idcard/{userId}/verify")
+    @AdminActivityLog(action = "Verify ID Card", resourceIdParam = "userId")
     public ResponseEntity<ApiResponse<IDCard>> verifyIDCard(@PathVariable String userId, @RequestBody Map<String, String> body) {
         IDCard card = repo.findByUserId(userId).orElseThrow(() -> new BusinessException.ResourceNotFoundException("ID Card"));
         card.setStatus(VerificationStatus.APPROVED);
@@ -182,6 +189,7 @@ public class IDCardController {
     }
 
     @PostMapping("/idcard/{userId}/verify-with-data")
+    @AdminActivityLog(action = "Verify ID Card with Data", resourceIdParam = "userId")
     public ResponseEntity<ApiResponse<IDCard>> verifyWithData(@PathVariable String userId, @RequestBody Map<String, Object> body) {
         IDCard card = repo.findByUserId(userId).orElseThrow(() -> new BusinessException.ResourceNotFoundException("ID Card"));
         card.setStatus(VerificationStatus.APPROVED);
@@ -204,6 +212,7 @@ public class IDCardController {
     }
 
     @PostMapping("/idcard/{userId}/reject")
+    @AdminActivityLog(action = "Reject ID Card", resourceIdParam = "userId")
     public ResponseEntity<ApiResponse<IDCard>> rejectIDCard(@PathVariable String userId, @RequestBody Map<String, String> body) {
         IDCard card = repo.findByUserId(userId).orElseThrow(() -> new BusinessException.ResourceNotFoundException("ID Card"));
         card.setStatus(VerificationStatus.REJECTED);
@@ -220,6 +229,7 @@ public class IDCardController {
     }
 
     @PostMapping("/idcard/{userId}/request-reverification")
+    @AdminActivityLog(action = "Request ID Re-Verification", resourceIdParam = "userId")
     public ResponseEntity<ApiResponse<IDCard>> requestReVerification(@PathVariable String userId, @RequestBody Map<String, String> body) {
         IDCard card = repo.findByUserId(userId).orElseThrow(() -> new BusinessException.ResourceNotFoundException("ID Card"));
         String reason = body.get("reason");

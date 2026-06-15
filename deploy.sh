@@ -14,7 +14,7 @@ VM_USER="${DEPLOY_VM_USER:-opc}"
 KEY_PATH="${DEPLOY_KEY_PATH:-$HOME/Downloads/ssh-key-2026-05-29.key}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/opt/myapp}"
 JAR_NAME="cax_backend-0.0.1-SNAPSHOT.jar"
-HEALTH_CHECK_URL="http://localhost:8080/actuator/health"
+HEALTH_CHECK_URL="http://localhost:8080/health"
 
 echo "--------------------------------------------------"
 echo "🚀 Starting Secure Deployment to Oracle VM ($VM_IP)..."

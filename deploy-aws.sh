@@ -10,10 +10,10 @@ fi
 
 VM_HOST="${DEPLOY_VM_HOST:-ec2-100-31-76-116.compute-1.amazonaws.com}"
 VM_USER="${DEPLOY_VM_USER:-ubuntu}"
-KEY_PATH="${DEPLOY_KEY_PATH:-~/.ssh/amazon-vm-key-pair.pem}"
+KEY_PATH="${DEPLOY_KEY_PATH:-$HOME/.ssh/amazon-vm-key-pair.pem}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/opt/myapp}"
 JAR_NAME="cax_backend-0.0.1-SNAPSHOT.jar"
-HEALTH_CHECK_URL="http://localhost:8080/actuator/health"
+HEALTH_CHECK_URL="http://localhost:8080/health"
 
 echo "--------------------------------------------------"
 echo "🚀 Starting Secure Deployment to AWS EC2 ($VM_HOST)..."
