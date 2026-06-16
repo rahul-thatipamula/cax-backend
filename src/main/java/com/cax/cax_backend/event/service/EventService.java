@@ -188,7 +188,12 @@ public class EventService {
         Map<String, Object> result = new HashMap<>();
         result.put("event", event);
         result.put("organizerRole", null);
-        result.put("participantStatus", participant.map(EventParticipant::getStatus).orElse(null));
+        
+        String status = participant.map(EventParticipant::getStatus).orElse(null);
+        if (status != null && "REJECTED".equals(status) && !event.isPaid()) {
+            status = "REGISTRATION_REJECTED";
+        }
+        result.put("participantStatus", status);
         return result;
     }
 
@@ -324,6 +329,11 @@ public class EventService {
     }
 
     public EventParticipant submitPayment(String userId, String eventId, String utrNumber, String screenshotUrl, double amount) {
+        Event event = getEventById(eventId);
+        if (!event.isPaid()) {
+            throw new BusinessException.BadRequestException("This is a free event, payment is not required.");
+        }
+
         EventParticipant participant = eventParticipantRepository.findByEventIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new BusinessException.BadRequestException("You are not registered for this event."));
 
