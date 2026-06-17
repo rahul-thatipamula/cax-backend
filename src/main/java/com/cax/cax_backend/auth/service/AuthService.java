@@ -118,8 +118,12 @@ public class AuthService {
                 if (user != null) {
                     // Update their googleId so we can look up by googleId next time
                     user.setGoogleId(uid);
-                    user.setAcceptedTerms(acceptedTerms);
-                    user.setAcceptedTermsAt(Instant.now());
+                    if (!user.isAcceptedTerms()) {
+                        user.setAcceptedTerms(acceptedTerms);
+                        if (acceptedTerms) {
+                            user.setAcceptedTermsAt(Instant.now());
+                        }
+                    }
                     user.setOnline(true);
                     user.setLastLoginAt(Instant.now());
                     user.setLastSeenAt(Instant.now());
@@ -138,23 +142,22 @@ public class AuthService {
                             .collegeDetailsAdded(false)
                             .idVerified(false)
                             .acceptedTerms(acceptedTerms)
-                            .acceptedTermsAt(Instant.now())
+                            .acceptedTermsAt(acceptedTerms ? Instant.now() : null)
                             .isOnline(true)
                             .lastLoginAt(Instant.now())
                             .lastSeenAt(Instant.now())
                             .build();
                     user = userRepository.save(user);
                     log.info("New user created: {}", uid);
-
-
-
                     eventPublisher.publishEvent(new UserSignupEvent(this, user));
                 }
             } else {
                 // Update terms if not accepted
                 if (!user.isAcceptedTerms()) {
-                    user.setAcceptedTerms(true);
-                    user.setAcceptedTermsAt(Instant.now());
+                    user.setAcceptedTerms(acceptedTerms);
+                    if (acceptedTerms) {
+                        user.setAcceptedTermsAt(Instant.now());
+                    }
                     user.setUpdatedAt(Instant.now());
                 }
                 // Update picture if changed
