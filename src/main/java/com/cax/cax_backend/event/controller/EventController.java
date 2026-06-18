@@ -6,6 +6,7 @@ import com.cax.cax_backend.event.model.EventParticipant;
 import com.cax.cax_backend.event.service.EventService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -181,6 +182,25 @@ public class EventController {
         List<EventParticipant> participants = eventService.getParticipants(userId, eventId);
         return ResponseEntity.ok(ApiResponse.success(participants));
     }
+
+    @GetMapping("/events/{eventId}/participants/export")
+    public ResponseEntity<byte[]> exportParticipants(
+            Authentication auth,
+            @PathVariable String eventId) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        byte[] csvData = eventService.exportParticipantsToCsv(userId, eventId);
+
+        String filename = "event_" + eventId + "_participants.csv";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, "text/csv")
+                .body(csvData);
+    }
+
 
     @PutMapping("/events/{eventId}/participants/{participantId}/verify")
     public ResponseEntity<ApiResponse<EventParticipant>> verifyPayment(

@@ -415,6 +415,45 @@ public class EventService {
         return participants;
     }
 
+    public byte[] exportParticipantsToCsv(String userId, String eventId) {
+        List<EventParticipant> participants = getParticipants(userId, eventId);
+
+        StringBuilder csv = new StringBuilder();
+        // CSV Header
+        csv.append("Registration ID,Participant Name,Email Address,College Affiliation,CAX ID / Student ID,Registration Date,Ticket Status,Ticket Code,Amount Paid (INR),UTR Number,Checked In,Checked In Time,Suspicious,Suspicious Note\n");
+
+        for (EventParticipant p : participants) {
+            csv.append(escapeCsv(p.getId())).append(",")
+               .append(escapeCsv(p.getName())).append(",")
+               .append(escapeCsv(p.getEmail())).append(",")
+               .append(escapeCsv(p.getCollege())).append(",")
+               .append(escapeCsv(p.getIdCardNumber())).append(",")
+               .append(escapeCsv(p.getRegisteredAt() != null ? p.getRegisteredAt().toString() : "")).append(",")
+               .append(escapeCsv(p.getStatus())).append(",")
+               .append(escapeCsv(p.getTicketCode())).append(",")
+               .append(p.getAmountPaid()).append(",")
+               .append(escapeCsv(p.getUtrNumber())).append(",")
+               .append(p.isCheckedIn() ? "Yes" : "No").append(",")
+               .append(escapeCsv(p.getCheckedInAt() != null ? p.getCheckedInAt().toString() : "")).append(",")
+               .append(p.isSuspicious() ? "Yes" : "No").append(",")
+               .append(escapeCsv(p.getSuspiciousNote())).append("\n");
+        }
+
+        return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) {
+            return "";
+        }
+        String escaped = value.replace("\"", "\"\"");
+        if (escaped.contains(",") || escaped.contains("\n") || escaped.contains("\r") || escaped.contains("\"")) {
+            return "\"" + escaped + "\"";
+        }
+        return escaped;
+    }
+
+
     // ========================================================================
     // AUTHORIZATION HELPERS
     // ========================================================================
