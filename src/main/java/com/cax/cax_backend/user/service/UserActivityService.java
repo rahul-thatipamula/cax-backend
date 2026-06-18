@@ -4,6 +4,10 @@ import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -20,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class UserActivityService {
 
     private final UserRepository userRepository;
+    private final MongoTemplate mongoTemplate;
 
     // Cache to throttle database writes (UserId -> Last updated time)
     private final Map<String, Instant> lastUpdatedCache = new ConcurrentHashMap<>();
@@ -40,14 +45,11 @@ public class UserActivityService {
         if (lastUpdated == null || lastUpdated.plus(Duration.ofMinutes(1)).isBefore(now)) {
             lastUpdatedCache.put(userId, now);
             try {
-                userRepository.findByUserId(userId).ifPresent(user -> {
-                    user.setLastSeenAt(now);
-                    // Ensure isOnline is true if they make any API requests
-                    if (!user.isOnline()) {
-                        user.setOnline(true);
-                    }
-                    userRepository.save(user);
-                });
+                Query query = new Query(Criteria.where("userId").is(userId));
+                Update update = new Update()
+                        .set("lastSeenAt", now)
+                        .set("isOnline", true);
+                mongoTemplate.updateFirst(query, update, User.class);
             } catch (Exception e) {
                 log.error("Failed to update last seen for user: {}", userId, e);
             }
@@ -62,15 +64,28 @@ public class UserActivityService {
     public void cleanupOfflineUsers() {
         try {
             Instant threshold = Instant.now().minus(Duration.ofMinutes(5));
-            List<User> staleUsers = userRepository.findStaleOnlineUsers(threshold);
+            
+            // First fetch only the userIds of stale online users to evict them from the throttle cache
+            Query findQuery = new Query(Criteria.where("isOnline").is(true).orOperator(
+                    Criteria.where("lastSeenAt").lt(threshold),
+                    Criteria.where("lastSeenAt").isNull()
+            ));
+            findQuery.fields().include("userId");
+            List<User> staleUsers = mongoTemplate.find(findQuery, User.class);
+
             if (!staleUsers.isEmpty()) {
                 log.info("Marking {} inactive users as offline", staleUsers.size());
+                
+                Query updateQuery = new Query(Criteria.where("isOnline").is(true).orOperator(
+                        Criteria.where("lastSeenAt").lt(threshold),
+                        Criteria.where("lastSeenAt").isNull()
+                ));
+                Update update = new Update().set("isOnline", false);
+                mongoTemplate.updateMulti(updateQuery, update, User.class);
+
                 for (User user : staleUsers) {
-                    user.setOnline(false);
-                    // Also clear from in-memory throttle cache so next request writes immediately
                     lastUpdatedCache.remove(user.getUserId());
                 }
-                userRepository.saveAll(staleUsers);
             }
         } catch (Exception e) {
             log.error("Failed to clean up offline users in scheduler", e);

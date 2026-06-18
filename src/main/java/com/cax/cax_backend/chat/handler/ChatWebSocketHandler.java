@@ -72,6 +72,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 clubSessions.computeIfAbsent(clubId, k -> ConcurrentHashMap.newKeySet()).add(session);
                 sessionClubMap.put(session.getId(), clubId);
                 sessionUserMap.put(session.getId(), userId);
+                session.getAttributes().put("isBlocked", isBlocked);
                 chatSessionTracker.registerSession(userId, clubId, session.getId());
                 
                 log.info("User {} joined WebSocket channel for club {}", userId, clubId);
@@ -91,10 +92,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     sessionUserMap.put(session.getId(), senderId);
                 }
 
-                // Check if user is blocked
-                boolean isBlocked = userRepository.findByUserId(senderId)
-                        .map(User::isBlocked)
-                        .orElse(false);
+                // Check if user is blocked (using session attributes to prevent redundant DB hits)
+                Boolean isBlocked = (Boolean) session.getAttributes().get("isBlocked");
+                if (isBlocked == null) {
+                    isBlocked = userRepository.findByUserId(senderId)
+                            .map(User::isBlocked)
+                            .orElse(false);
+                    session.getAttributes().put("isBlocked", isBlocked);
+                }
                 if (isBlocked) {
                     log.warn("WS MESSAGE request rejected: user {} is blocked", senderId);
                     session.close(CloseStatus.NOT_ACCEPTABLE);

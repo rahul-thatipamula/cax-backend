@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -17,6 +19,11 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "student_posts")
+@CompoundIndexes({
+    @CompoundIndex(name = "college_created_idx", def = "{'collegeId': 1, 'createdAt': -1}"),
+    @CompoundIndex(name = "user_created_idx", def = "{'userId': 1, 'createdAt': -1}"),
+    @CompoundIndex(name = "active_college_created_idx", def = "{'collegeId': 1, 'disabled': 1, 'createdAt': -1}")
+})
 public class StudentPost {
     @Id
     private String id;
