@@ -13,6 +13,7 @@ import com.cax.cax_backend.common.enums.UserRole;
 import com.cax.cax_backend.common.exception.AuthException;
 import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.common.util.JwtUtil;
+import com.cax.cax_backend.common.util.EncryptionUtils;
 import com.cax.cax_backend.common.util.TotpUtil;
 
 import com.cax.cax_backend.user.event.CollegeSelectedEvent;
@@ -193,7 +194,7 @@ public class AuthService {
             if (user.getRefreshTokens() == null) {
                 user.setRefreshTokens(new java.util.ArrayList<>());
             }
-            user.getRefreshTokens().add(refreshToken);
+            user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
             userRepository.save(user);
 
             // Determine redirect
@@ -258,7 +259,7 @@ public class AuthService {
         if (user.getRefreshTokens() == null) {
             user.setRefreshTokens(new java.util.ArrayList<>());
         }
-        user.getRefreshTokens().add(refreshToken);
+        user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
         
         // Track login
         user.setOnline(true);
@@ -338,7 +339,7 @@ public class AuthService {
             if (user.getRefreshTokens() == null) {
                 user.setRefreshTokens(new java.util.ArrayList<>());
             }
-            user.getRefreshTokens().add(refreshToken);
+            user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
             
             // Track login
             user.setOnline(true);
@@ -576,7 +577,7 @@ public class AuthService {
         if (user.getRefreshTokens() == null) {
             user.setRefreshTokens(new java.util.ArrayList<>());
         }
-        user.getRefreshTokens().add(refreshToken);
+        user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
         
         // Track login
         user.setOnline(true);
@@ -625,12 +626,20 @@ public class AuthService {
             User user = userRepository.findByUserId(userId)
                     .orElseThrow(AuthException.UserNotFoundException::new);
 
-            if (user.getRefreshTokens() == null || !user.getRefreshTokens().contains(refreshToken)) {
+            String tokenHash = EncryptionUtils.hashSHA256(refreshToken);
+            boolean containsLegacy = user.getRefreshTokens() != null && user.getRefreshTokens().contains(refreshToken);
+            boolean containsHashed = user.getRefreshTokens() != null && user.getRefreshTokens().contains(tokenHash);
+
+            if (!containsLegacy && !containsHashed) {
                 throw new AuthException.InvalidTokenException("Refresh token is invalid or has been revoked");
             }
 
             // Remove the old refresh token (rotation)
-            user.getRefreshTokens().remove(refreshToken);
+            if (containsLegacy) {
+                user.getRefreshTokens().remove(refreshToken);
+            } else {
+                user.getRefreshTokens().remove(tokenHash);
+            }
 
             // Generate new access and refresh tokens
             boolean isAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN 
@@ -638,7 +647,7 @@ public class AuthService {
             String newAccessToken = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
             String newRefreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
 
-            user.getRefreshTokens().add(newRefreshToken);
+            user.getRefreshTokens().add(EncryptionUtils.hashSHA256(newRefreshToken));
             userRepository.save(user);
 
             Map<String, Object> result = new HashMap<>();
@@ -670,7 +679,7 @@ public class AuthService {
                 .orElseThrow(AuthException.UserNotFoundException::new);
         
         String secret = TotpUtil.generateSecretKey();
-        user.setTwoFactorSecret(secret);
+        user.setTwoFactorSecret(EncryptionUtils.encrypt(secret));
         userRepository.save(user);
 
         String qrCodeUrl = TotpUtil.getQrCodeUrl(user.getEmail(), secret, "CAX");
@@ -690,7 +699,7 @@ public class AuthService {
             throw new BusinessException.BadRequestException("2FA setup not initiated");
         }
 
-        boolean verified = TotpUtil.verifyCode(user.getTwoFactorSecret(), code, 1);
+        boolean verified = TotpUtil.verifyCode(EncryptionUtils.decrypt(user.getTwoFactorSecret()), code, 1);
         if (!verified) {
             throw new BusinessException.BadRequestException("Invalid verification code");
         }
@@ -713,7 +722,7 @@ public class AuthService {
             throw new BusinessException.BadRequestException("Two-factor authentication is not enabled");
         }
 
-        boolean verified = TotpUtil.verifyCode(user.getTwoFactorSecret(), code, 1);
+        boolean verified = TotpUtil.verifyCode(EncryptionUtils.decrypt(user.getTwoFactorSecret()), code, 1);
         if (!verified) {
             throw new BusinessException.BadRequestException("Invalid verification code");
         }
@@ -746,7 +755,7 @@ public class AuthService {
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(AuthException.UserNotFoundException::new);
 
-        boolean verified = TotpUtil.verifyCode(user.getTwoFactorSecret(), code, 1);
+        boolean verified = TotpUtil.verifyCode(EncryptionUtils.decrypt(user.getTwoFactorSecret()), code, 1);
         if (!verified) {
             throw new BusinessException.BadRequestException("Invalid verification code");
         }
@@ -760,7 +769,7 @@ public class AuthService {
         if (user.getRefreshTokens() == null) {
             user.setRefreshTokens(new java.util.ArrayList<>());
         }
-        user.getRefreshTokens().add(refreshToken);
+        user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
         
         // Track login
         user.setOnline(true);

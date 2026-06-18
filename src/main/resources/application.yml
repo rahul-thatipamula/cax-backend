@@ -3,6 +3,8 @@ server:
 
 app:
   env: ${APP_ENV:production}
+  encryption:
+    key: ${APP_ENCRYPTION_KEY:CaxGroupChatSecr}
 
 spring:
   application:

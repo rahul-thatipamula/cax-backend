@@ -56,7 +56,7 @@ public class ChatService {
                 .content(encryptedContent)
                 .replyToId(replyToId)
                 .replyToName(replyToName)
-                .replyToContent(replyToContent)
+                .replyToContent(replyToContent != null ? EncryptionUtils.encrypt(replyToContent) : null)
                 .createdAt(Instant.now())
                 .build();
 
@@ -64,6 +64,9 @@ public class ChatService {
 
         // Decrypt for returning
         savedMessage.setContent(content);
+        if (savedMessage.getReplyToContent() != null) {
+            savedMessage.setReplyToContent(EncryptionUtils.decrypt(savedMessage.getReplyToContent()));
+        }
 
         // Send notifications to all other members asynchronously
         chatNotificationService.sendChatNotificationsAsync(senderId, club, sender.getName(), content);
@@ -84,6 +87,9 @@ public class ChatService {
         messages.forEach(msg -> {
             try {
                 msg.setContent(EncryptionUtils.decrypt(msg.getContent()));
+                if (msg.getReplyToContent() != null) {
+                    msg.setReplyToContent(EncryptionUtils.decrypt(msg.getReplyToContent()));
+                }
             } catch (Exception e) {
                 log.error("Failed to decrypt message {}: {}", msg.getId(), e.getMessage());
             }
