@@ -73,7 +73,12 @@ public class Event {
     private String collegeId;
     private String collegeName;
 
+    @Builder.Default
+    private int notificationsSentCount = 0;
+
     private Instant updatedAt;
+
+    private String websiteUrl;
 
     public List<EventCoordinator> getCoordinators() {
         return coordinators == null ? new java.util.ArrayList<>() : coordinators;

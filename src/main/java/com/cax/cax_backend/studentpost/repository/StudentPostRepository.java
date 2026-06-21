@@ -29,4 +29,10 @@ public interface StudentPostRepository extends MongoRepository<StudentPost, Stri
 
     @Query(value = "{ 'collegeId': ?0, 'disabled': { $ne: true }, 'createdAt': { $gt: ?1 } }", count = true)
     long countActiveByCollegeIdSince(String collegeId, Instant timestamp);
+
+    @Query(value = "{ 'disabled': { $ne: true }, 'createdAt': { $gt: ?0 } }", count = true)
+    long countActiveSince(Instant timestamp);
+
+    @Query(value = "{ 'disabled': { $ne: true }, 'createdAt': { $gt: ?1 }, 'userId': { $ne: ?0 } }", count = true)
+    long countActiveExcludingUserSince(String userId, Instant timestamp);
 }

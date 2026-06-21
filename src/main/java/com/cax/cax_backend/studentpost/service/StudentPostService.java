@@ -104,6 +104,9 @@ public class StudentPostService {
                 .createdAt(Instant.now())
                 .build();
 
+        user.setLastSeenFeedAt(Instant.now());
+        userService.saveUser(user);
+
         return studentPostRepository.save(post);
     }
 

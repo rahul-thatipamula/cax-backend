@@ -57,9 +57,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (userId == null) {
                 userId = claims.getSubject();
             }
+
+            String appVersion = request.getHeader("X-App-Version");
+            String buildNumberStr = request.getHeader("X-Build-Number");
+            int buildNumber = 0;
+            if (buildNumberStr != null && !buildNumberStr.isBlank()) {
+                try {
+                    buildNumber = Integer.parseInt(buildNumberStr.trim());
+                } catch (NumberFormatException e) {
+                    // ignore
+                }
+            }
             
             // Record last seen activity asynchronously
-            userActivityService.updateLastSeen(userId);
+            userActivityService.updateLastSeen(userId, appVersion, buildNumber);
             
             String role = claims.get("role", String.class);
             Boolean isAdmin = claims.get("isAdmin", Boolean.class);

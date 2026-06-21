@@ -159,4 +159,11 @@ public class UserService {
     public java.util.Optional<User> getUserOptByUserId(String userId) {
         return userRepository.findByUserId(userId);
     }
+
+    public User toggleWaterReminder(String userId, boolean subscribed) {
+        User user = getUserByUserId(userId);
+        user.setWaterReminderSubscribed(subscribed);
+        user.setUpdatedAt(java.time.Instant.now());
+        return userRepository.save(user);
+    }
 }

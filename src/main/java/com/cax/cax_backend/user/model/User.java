@@ -112,4 +112,11 @@ public class User {
 
     @Builder.Default
     private int rejectionCount = 0;
+
+    private String appVersion;
+    private int buildNumber;
+
+    @Builder.Default
+    private boolean waterReminderSubscribed = false;
+    private Instant lastWaterReminderSentAt;
 }

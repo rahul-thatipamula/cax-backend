@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.concurrent.Executor;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import com.cax.cax_backend.idcard.model.IDCard;
 import com.cax.cax_backend.idcard.repository.IDCardRepository;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
+import com.cax.cax_backend.user.repository.UserRepository;
 import com.cax.cax_backend.event.model.EventMemory;
 import com.cax.cax_backend.event.repository.EventMemoryRepository;
 import com.cax.cax_backend.notification.service.NotificationService;
@@ -49,6 +51,8 @@ public class EventService {
     private final ApplicationEventPublisher eventPublisher;
     private final EventMemoryRepository eventMemoryRepository;
     private final NotificationService notificationService;
+    private final UserRepository userRepository;
+    private final Executor taskExecutor;
 
     // ========================================================================
     // EVENT CRUD
@@ -140,6 +144,9 @@ public class EventService {
         }
         if (eventData.getGuests() != null) {
             event.setGuests(eventData.getGuests());
+        }
+        if (eventData.getWebsiteUrl() != null) {
+            event.setWebsiteUrl(eventData.getWebsiteUrl());
         }
 
         event.setUpdatedAt(Instant.now());
@@ -463,6 +470,81 @@ public class EventService {
             return;
         }
         throw new BusinessException.BadRequestException("Only the President, Vice President, or Club Managers can perform this action.");
+    }
+
+    public void verifyEventManager(String userId, Event event) {
+        if (userId.equals(event.getCreatedByUserId())) {
+            return;
+        }
+        Club club = clubService.getClubById(event.getClubId());
+        if (clubService.isClubLeaderOrManager(userId, club.getId())) {
+            return;
+        }
+        User user = userService.getUserByUserId(userId);
+        if (user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN) {
+            return;
+        }
+        throw new BusinessException.BadRequestException("Only the event organizer or club leaders can manage this event.");
+    }
+
+    public void sendEventAnnouncementNotification(String userId, String eventId) {
+        Event event = getEventById(eventId);
+        verifyEventManager(userId, event);
+
+        int maxAllowed = event.isGlobal() ? 1 : 2;
+        if (event.getNotificationsSentCount() >= maxAllowed) {
+            throw new BusinessException.BadRequestException("Maximum notifications limit reached for this event.");
+        }
+
+        // Increment count and save synchronously (prevents race conditions)
+        event.setNotificationsSentCount(event.getNotificationsSentCount() + 1);
+        event.setUpdatedAt(Instant.now());
+        eventRepository.save(event);
+
+        // Fetch users to notify
+        List<User> targetUsers;
+        if (event.isGlobal()) {
+            targetUsers = userRepository.findGlobalNotificationEligibleUsers();
+        } else {
+            String collegeId = event.getCollegeId();
+            if (collegeId == null || collegeId.isBlank()) {
+                throw new BusinessException.BadRequestException("Event college details are missing.");
+            }
+            targetUsers = userRepository.findNotificationEligibleUsersByCollegeId(collegeId);
+        }
+
+        // Asynchronous broadcast execution
+        taskExecutor.execute(() -> {
+            log.info("Broadcasting event announcement for event {} to {} users...", event.getId(), targetUsers.size());
+            String title = "📢 Announcement: " + event.getName();
+            String body = "New announcement for event: " + event.getName() + ". Check it out!";
+            
+            Map<String, String> data = new HashMap<>();
+            data.put("type", "EVENT_ANNOUNCEMENT");
+            data.put("eventId", event.getId());
+            data.put("deepLink", "cax://events/" + event.getId());
+
+            int successCount = 0;
+            for (User user : targetUsers) {
+                // Skip the sender
+                if (user.getUserId().equals(userId)) {
+                    continue;
+                }
+                try {
+                    notificationService.createNotification(
+                            user.getUserId(),
+                            title,
+                            body,
+                            NotificationType.EVENT,
+                            data
+                    );
+                    successCount++;
+                } catch (Exception e) {
+                    log.error("Failed to send announcement notification to user: {}", user.getUserId(), e);
+                }
+            }
+            log.info("Finished broadcasting event announcement. Successfully sent: {}/{}", successCount, targetUsers.size());
+        });
     }
 
     public EventParticipant checkInParticipant(String organizerId, String eventId, String ticketCode) {

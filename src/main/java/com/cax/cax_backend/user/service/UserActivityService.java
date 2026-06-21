@@ -34,7 +34,7 @@ public class UserActivityService {
      * Throttled to at most once per minute to avoid MongoDB write amplification.
      */
     @Async("taskExecutor")
-    public void updateLastSeen(String userId) {
+    public void updateLastSeen(String userId, String appVersion, int buildNumber) {
         if (userId == null || userId.isBlank()) {
             return;
         }
@@ -49,6 +49,14 @@ public class UserActivityService {
                 Update update = new Update()
                         .set("lastSeenAt", now)
                         .set("isOnline", true);
+                
+                if (appVersion != null && !appVersion.isBlank()) {
+                    update.set("appVersion", appVersion);
+                }
+                if (buildNumber > 0) {
+                    update.set("buildNumber", buildNumber);
+                }
+                
                 mongoTemplate.updateFirst(query, update, User.class);
             } catch (Exception e) {
                 log.error("Failed to update last seen for user: {}", userId, e);

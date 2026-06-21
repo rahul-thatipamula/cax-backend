@@ -29,7 +29,10 @@ public class FeedNotificationScheduler {
     @Scheduled(cron = "0 30 19 * * *")
     public void sendUnseenFeedNotifications() {
         log.info("Starting scheduled unseen feed notification run...");
-        List<User> users = userRepository.findAll();
+        
+        // Target users active in the last 7 days
+        Instant activeThreshold = Instant.now().minus(7, ChronoUnit.DAYS);
+        List<User> users = userRepository.findActiveNotificationEligibleUsers(activeThreshold);
         Instant oneDayAgo = Instant.now().minus(24, ChronoUnit.HOURS);
 
         for (User user : users) {
@@ -45,13 +48,8 @@ public class FeedNotificationScheduler {
 
             // Default lastSeenFeedAt to 24 hours ago if they have never opened the feed
             Instant lastSeen = user.getLastSeenFeedAt() != null ? user.getLastSeenFeedAt() : oneDayAgo;
-            String collegeId = user.getCollegeDetails() != null ? user.getCollegeDetails().getCollegeId() : null;
 
-            if (collegeId == null || collegeId.isBlank()) {
-                continue;
-            }
-
-            long unseenCount = studentPostRepository.countActiveByCollegeIdSince(collegeId, lastSeen);
+            long unseenCount = studentPostRepository.countActiveExcludingUserSince(user.getUserId(), lastSeen);
 
             if (unseenCount > 0) {
                 try {
@@ -59,10 +57,10 @@ public class FeedNotificationScheduler {
                     data.put("type", "FEED_DIGEST");
                     data.put("unseenCount", String.valueOf(unseenCount));
                     
-                    String title = "🔥 What's happening in your college?";
+                    String title = "🔥 What's happening on CAX?";
                     String body = unseenCount == 1 
-                            ? "There is 1 new thought in your college feed. Check it out!"
-                            : String.format("There are %d new thoughts in your college feed. Check them out!", unseenCount);
+                            ? "There is 1 new thought in the feed. Check it out!"
+                            : String.format("There are %d new thoughts in the feed. Check them out!", unseenCount);
 
                     log.info("Sending feed nudge to user {} with {} unseen thoughts", user.getUserId(), unseenCount);
                     

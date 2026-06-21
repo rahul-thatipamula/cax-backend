@@ -85,6 +85,22 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(userService.updateUserRole(userId, role)));
     }
 
+    @PostMapping("/{userId}/water-reminder")
+    public ResponseEntity<ApiResponse<User>> toggleWaterReminder(
+            @PathVariable String userId,
+            @RequestParam boolean subscribed,
+            Authentication auth) {
+        String authUserId = (String) auth.getPrincipal();
+        if (!authUserId.equals(userId)) {
+            try {
+                checkAdmin(auth);
+            } catch (Exception e) {
+                throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("You can only modify your own settings");
+            }
+        }
+        return ResponseEntity.ok(ApiResponse.success(userService.toggleWaterReminder(userId, subscribed)));
+    }
+
     private void checkAdmin(Authentication auth) {
         if (auth == null || auth.getCredentials() == null) {
             throw new com.cax.cax_backend.common.exception.AuthException.AdminOnlyException();

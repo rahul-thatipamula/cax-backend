@@ -103,6 +103,18 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.success("Event cancelled successfully"));
     }
 
+    @PostMapping("/events/{eventId}/announce")
+    public ResponseEntity<ApiResponse<Void>> sendEventAnnouncement(
+            Authentication auth,
+            @PathVariable String eventId) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        eventService.sendEventAnnouncementNotification(userId, eventId);
+        return ResponseEntity.ok(ApiResponse.success("Announcement notification sent successfully"));
+    }
+
     @GetMapping("/clubs/{clubId}/events")
     public ResponseEntity<ApiResponse<List<Event>>> getClubEvents(
             Authentication auth,

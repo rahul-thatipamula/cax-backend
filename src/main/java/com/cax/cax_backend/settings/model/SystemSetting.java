@@ -23,6 +23,24 @@ public class SystemSetting {
     private boolean onlyAllowCollegeEmails = false;
 
     @Builder.Default
+    private String latestVersion = "1.0.0";
+
+    @Builder.Default
+    private String minRequiredVersion = "1.0.0";
+
+    @Builder.Default
+    private int latestBuildNumber = 1;
+
+    @Builder.Default
+    private int minRequiredBuildNumber = 1;
+
+    @Builder.Default
+    private String updateMessage = "A new version of CAX is available. Please update to continue.";
+
+    @Builder.Default
+    private String storeUrl = "";
+
+    @Builder.Default
     private Instant createdAt = Instant.now();
 
     @Builder.Default

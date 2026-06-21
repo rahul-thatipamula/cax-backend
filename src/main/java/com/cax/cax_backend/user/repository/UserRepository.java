@@ -19,4 +19,16 @@ public interface UserRepository extends MongoRepository<User, String>, CustomUse
 
     @Query("{ 'isOnline': true, '$or': [ { 'lastSeenAt': { '$lt': ?0 } }, { 'lastSeenAt': null } ] }")
     List<User> findStaleOnlineUsers(java.time.Instant threshold);
+
+    @Query("{ 'blocked': false, 'fcmToken': { $exists: true, $ne: null }, $or: [ { 'lastSeenAt': { $gt: ?0 } }, { 'createdAt': { $gt: ?0 } } ] }")
+    List<User> findActiveNotificationEligibleUsers(java.time.Instant activeThreshold);
+
+    @Query("{ 'collegeDetails.collegeId': ?0, 'blocked': false, 'fcmToken': { $exists: true, $ne: null } }")
+    List<User> findNotificationEligibleUsersByCollegeId(String collegeId);
+
+    @Query("{ 'blocked': false, 'fcmToken': { $exists: true, $ne: null } }")
+    List<User> findGlobalNotificationEligibleUsers();
+
+    @Query("{ 'waterReminderSubscribed': true, 'blocked': false, 'fcmToken': { $exists: true, $ne: null }, '$or': [ { 'lastWaterReminderSentAt': { '$exists': false } }, { 'lastWaterReminderSentAt': null }, { 'lastWaterReminderSentAt': { '$lt': ?0 } } ] }")
+    List<User> findUsersForWaterReminder(java.time.Instant threshold);
 }

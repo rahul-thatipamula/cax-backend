@@ -2,6 +2,7 @@ package com.cax.cax_backend.settings.controller;
 
 import com.cax.cax_backend.common.annotation.AdminActivityLog;
 import com.cax.cax_backend.common.dto.ApiResponse;
+import com.cax.cax_backend.settings.dto.VersionSettingsRequest;
 import com.cax.cax_backend.settings.model.SystemSetting;
 import com.cax.cax_backend.settings.service.SystemSettingService;
 import io.jsonwebtoken.Claims;
@@ -9,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/settings/system")
@@ -31,6 +34,25 @@ public class SystemSettingController {
         checkAdmin(auth);
         return ResponseEntity.ok(ApiResponse.success(
                 systemSettingService.updateOnlyAllowCollegeEmails(enabled)
+        ));
+    }
+
+    @PostMapping("/version")
+    @AdminActivityLog(action = "Update App Version Settings")
+    public ResponseEntity<ApiResponse<SystemSetting>> updateVersionSettings(
+            Authentication auth,
+            @RequestBody VersionSettingsRequest request) {
+        checkAdmin(auth);
+        return ResponseEntity.ok(ApiResponse.success(
+                systemSettingService.updateVersionSettings(request)
+        ));
+    }
+
+    @GetMapping("/version/stats")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getVersionStats(Authentication auth) {
+        checkAdmin(auth);
+        return ResponseEntity.ok(ApiResponse.success(
+                systemSettingService.getVersionStats()
         ));
     }
 
