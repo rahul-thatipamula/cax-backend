@@ -21,8 +21,6 @@ import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.event.model.EventParticipant;
 import com.cax.cax_backend.event.repository.EventParticipantRepository;
 import com.cax.cax_backend.event.repository.EventRepository;
-import com.cax.cax_backend.idcard.model.IDCard;
-import com.cax.cax_backend.idcard.repository.IDCardRepository;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
 import com.cax.cax_backend.user.repository.UserRepository;
@@ -46,7 +44,6 @@ public class EventService {
     private final EventParticipantRepository eventParticipantRepository;
     private final ClubService clubService;
     private final UserService userService;
-    private final IDCardRepository idCardRepository;
     private final com.cax.cax_backend.college.repository.CollegeRepository collegeRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EventMemoryRepository eventMemoryRepository;
@@ -291,7 +288,7 @@ public class EventService {
     // PARTICIPANT MANAGEMENT
     // ========================================================================
 
-    public EventParticipant registerForEvent(String userId, String eventId) {
+    public EventParticipant registerForEvent(String userId, String eventId, Map<String, Object> idCardDetails) {
         Event event = getEventById(eventId);
 
         if (!"ACTIVE".equals(event.getStatus())) {
@@ -306,6 +303,20 @@ public class EventService {
             throw new BusinessException.BadRequestException("You are already registered for this event.");
         }
 
+        // Collect & validate ID card details when the event requires them
+        String idCardNumber = null;
+        String idCardName = null;
+        String idCardDepartment = null;
+        if (event.isIdCardRequired()) {
+            idCardNumber = trimToNull(idCardDetails != null ? idCardDetails.get("idCardNumber") : null);
+            idCardName = trimToNull(idCardDetails != null ? idCardDetails.get("idCardName") : null);
+            idCardDepartment = trimToNull(idCardDetails != null ? idCardDetails.get("idCardDepartment") : null);
+            if (idCardNumber == null || idCardName == null || idCardDepartment == null) {
+                throw new BusinessException.BadRequestException(
+                        "ID card number, name on card, and department are required to register for this event.");
+            }
+        }
+
         User user = userService.getUserByUserId(userId);
         String collegeName = null;
         if (user.getCollegeDetails() != null && user.getCollegeDetails().getCollegeName() != null) {
@@ -316,10 +327,6 @@ public class EventService {
         // Paid events → PENDING_PAYMENT (requires payment submission)
         String initialStatus = event.isPaid() ? "PENDING_PAYMENT" : "PENDING_APPROVAL";
 
-        String idCardNumber = idCardRepository.findByUserId(userId)
-                .map(IDCard::getIdCardNumber)
-                .orElse(null);
-
         EventParticipant participant = EventParticipant.builder()
                 .eventId(eventId)
                 .userId(userId)
@@ -328,11 +335,21 @@ public class EventService {
                 .picture(user.getPicture())
                 .college(collegeName)
                 .idCardNumber(idCardNumber)
+                .idCardName(idCardName)
+                .idCardDepartment(idCardDepartment)
                 .status(initialStatus)
                 .registeredAt(Instant.now())
                 .build();
 
         return eventParticipantRepository.save(participant);
+    }
+
+    private String trimToNull(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String s = value.toString().trim();
+        return s.isEmpty() ? null : s;
     }
 
     public EventParticipant submitPayment(String userId, String eventId, String utrNumber, String screenshotUrl, double amount) {
@@ -404,21 +421,7 @@ public class EventService {
                 .filter(id -> id != null && !id.isBlank())
                 .collect(Collectors.toList());
 
-        List<com.cax.cax_backend.idcard.model.IDCard> cards = idCardRepository.findByUserIdIn(userIds);
-        Map<String, String> userIdToCardNumberMap = cards.stream()
-                .filter(card -> card.getUserId() != null && card.getIdCardNumber() != null)
-                .collect(Collectors.toMap(
-                        com.cax.cax_backend.idcard.model.IDCard::getUserId,
-                        com.cax.cax_backend.idcard.model.IDCard::getIdCardNumber,
-                        (existing, replacement) -> existing
-                ));
-
-        for (EventParticipant p : participants) {
-            String cardNumber = userIdToCardNumberMap.get(p.getUserId());
-            if (cardNumber != null) {
-                p.setIdCardNumber(cardNumber);
-            }
-        }
+        // ID card details lookup removed from participants list
         return participants;
     }
 
@@ -427,7 +430,7 @@ public class EventService {
 
         StringBuilder csv = new StringBuilder();
         // CSV Header
-        csv.append("Registration ID,Participant Name,Email Address,College Affiliation,CAX ID / Student ID,Registration Date,Ticket Status,Ticket Code,Amount Paid (INR),UTR Number,Checked In,Checked In Time,Suspicious,Suspicious Note\n");
+        csv.append("Registration ID,Participant Name,Email Address,College Affiliation,ID Card Number,Name On ID Card,Department,Registration Date,Ticket Status,Ticket Code,Amount Paid (INR),UTR Number,Checked In,Checked In Time,Suspicious,Suspicious Note\n");
 
         for (EventParticipant p : participants) {
             csv.append(escapeCsv(p.getId())).append(",")
@@ -435,6 +438,8 @@ public class EventService {
                .append(escapeCsv(p.getEmail())).append(",")
                .append(escapeCsv(p.getCollege())).append(",")
                .append(escapeCsv(p.getIdCardNumber())).append(",")
+               .append(escapeCsv(p.getIdCardName())).append(",")
+               .append(escapeCsv(p.getIdCardDepartment())).append(",")
                .append(escapeCsv(p.getRegisteredAt() != null ? p.getRegisteredAt().toString() : "")).append(",")
                .append(escapeCsv(p.getStatus())).append(",")
                .append(escapeCsv(p.getTicketCode())).append(",")
@@ -568,11 +573,8 @@ public class EventService {
         EventParticipant participant = eventParticipantRepository.findByEventIdAndTicketCode(eventId, ticketCode)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Ticket code not found for this event: " + ticketCode));
 
-        IDCard idCard = idCardRepository.findByUserId(participant.getUserId()).orElse(null);
-
         Map<String, Object> details = new HashMap<>();
         details.put("participant", participant);
-        details.put("idCard", idCard);
         return details;
     }
 

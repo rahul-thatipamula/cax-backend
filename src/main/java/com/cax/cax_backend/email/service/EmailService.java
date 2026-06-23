@@ -1,21 +1,23 @@
 package com.cax.cax_backend.email.service;
 
 import java.util.Optional;
-import com.cax.cax_backend.idcard.model.IDCard;
-import com.cax.cax_backend.user.model.User;
-import com.cax.cax_backend.event.model.Event;
-import com.cax.cax_backend.event.model.EventParticipant;
-import com.cax.cax_backend.club.model.Club;
-import com.cax.cax_backend.user.repository.UserRepository;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
+import com.cax.cax_backend.club.model.Club;
+import com.cax.cax_backend.event.model.Event;
+import com.cax.cax_backend.event.model.EventParticipant;
+import com.cax.cax_backend.user.model.User;
+import com.cax.cax_backend.user.repository.UserRepository;
+
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
@@ -89,8 +91,8 @@ public class EmailService {
         Optional<User> uOpt = userRepository.findByEmail(normalizedEmail);
         if (uOpt.isPresent()) {
             User user = uOpt.get();
-            if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
-                log.info("User associated with {} is blocked or verification expired. Skipping newsletter confirmation.", toEmail);
+            if (user.isBlocked()) {
+                log.info("User associated with {} is blocked. Skipping newsletter confirmation.", toEmail);
                 return;
             }
         }
@@ -145,131 +147,6 @@ public class EmailService {
     }
 
     /**
-     * Send a professional student ID verification request email.
-     */
-    public void sendIdVerificationRequestEmail(User user) {
-        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
-            log.warn("Cannot send ID verification request email: user or email is null/empty");
-            return;
-        }
-        if (user.isBlocked()) {
-            log.info("User {} is blocked. Skipping ID verification request email.", user.getUserId());
-            return;
-        }
-
-        String to = user.getEmail();
-        String name = user.getName() != null ? user.getName() : "Student";
-        String collegeName = (user.getCollegeDetails() != null && user.getCollegeDetails().getCollegeName() != null)
-                ? user.getCollegeDetails().getCollegeName()
-                : "your selected college";
-        String subject = "Verify your Student ID on Cax";
-
-        String textContent = String.format(
-            "Verify your Student ID\n\n" +
-            "Hello %s,\n\n" +
-            "You have successfully selected %s as your campus. Welcome to your campus portal!\n\n" +
-            "To ensure a safe and verified environment for all students, we require you to verify your student status. Verifying your student ID card unlocks full access to all features, including:\n" +
-            "- Registering for official student clubs\n" +
-            "- Securing RSVPs to campus events & workshops\n" +
-            "- Assigning club leadership & coordinator privileges\n\n" +
-            "Please upload a clear photo of your student ID card in the Cax Mobile App to verify your active enrollment.\n\n" +
-            "© 2026 Cax. All rights reserved.\n" +
-            "This is an automated operational notification regarding your student status.",
-            name,
-            collegeName
-        );
-
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-
-            helper.setFrom(fromEmail);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(textContent, false);
-
-            mailSender.send(message);
-            log.info("Student ID verification request email sent to {}", to);
-        } catch (MessagingException e) {
-            log.error("Failed to send ID verification request email to {}: ", to, e);
-        } catch (Exception e) {
-            log.error("Unexpected error sending ID verification request email to {}: ", to, e);
-        }
-    }
-
-    /**
-     * Send a professional ID card status update email.
-     */
-    public void sendIdCardStatusEmail(User user, IDCard idCard) {
-        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
-            log.warn("Cannot send ID card status email: user or email is null/empty");
-            return;
-        }
-        if (user.isBlocked()) {
-            log.info("User {} is blocked. Skipping ID card status email.", user.getUserId());
-            return;
-        }
-
-        String to = user.getEmail();
-        String name = user.getName() != null ? user.getName() : "Student";
-        boolean isApproved = idCard.getStatus() == com.cax.cax_backend.common.enums.CarouselEnums.VerificationStatus.APPROVED;
-        String subject = isApproved 
-            ? "Your CAX ID has been Approved! \uD83C\uDF93" 
-            : "Action Required: CAX ID Verification Rejected ⚠️";
-
-        String statusTitle = isApproved ? "Verification Approved" : "Verification Rejected";
-        String statusEmoji = isApproved ? "✅" : "⚠️";
-
-        StringBuilder detailMessage = new StringBuilder();
-        if (isApproved) {
-            detailMessage.append("Congratulations! Your Student ID card verification request has been successfully reviewed and approved.\n\n");
-            detailMessage.append("Your digital CAX ID is now verified. You have unlocked full operational access to official clubs, event registrations, and student coordinator privileges.\n\n");
-            if (idCard.getVerificationNotes() != null && !idCard.getVerificationNotes().isBlank()) {
-                detailMessage.append("Verification Notes:\n");
-                detailMessage.append(idCard.getVerificationNotes()).append("\n\n");
-            }
-        } else {
-            detailMessage.append("We were unable to verify your student status based on the ID card document uploaded.\n\n");
-            detailMessage.append("As a result, your ID verification status has been set to rejected. To restore verified access, please review the reason below and submit a new scanned copy of your ID card in the settings panel.\n\n");
-            if (idCard.getRejectionReason() != null && !idCard.getRejectionReason().isBlank()) {
-                detailMessage.append("Reason for Rejection:\n");
-                detailMessage.append(idCard.getRejectionReason()).append("\n\n");
-            }
-        }
-
-        String textContent = String.format(
-            "CAX ID Verification Update\n" +
-            "%s %s\n\n" +
-            "Hello %s,\n\n" +
-            "%s" +
-            "Please open the Cax app on your mobile device for full details.\n\n" +
-            "© 2026 Cax. All rights reserved.\n" +
-            "This is an automated operational notification regarding your credential status.",
-            statusEmoji,
-            statusTitle,
-            name,
-            detailMessage.toString()
-        );
-
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-
-            helper.setFrom(fromEmail);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(textContent, false);
-
-            mailSender.send(message);
-            log.info("ID Card status email successfully sent to {} ({})", to, idCard.getUserId());
-        } catch (MessagingException e) {
-            log.error("Failed to send ID Card status email to {}: ", to, e);
-        } catch (Exception e) {
-            log.error("Unexpected error sending ID Card status email to {}: ", to, e);
-        }
-    }
-
-    /**
      * Send a professional event registration status update email.
      */
     public void sendEventRegistrationStatusEmail(EventParticipant participant, Event event) {
@@ -281,8 +158,8 @@ public class EmailService {
         Optional<User> uOpt = userRepository.findByEmail(normalizedEmail);
         if (uOpt.isPresent()) {
             User user = uOpt.get();
-            if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
-                log.info("Participant {} is blocked or verification expired. Skipping registration status email.", participant.getEmail());
+            if (user.isBlocked()) {
+                log.info("Participant {} is blocked. Skipping registration status email.", participant.getEmail());
                 return;
             }
         }
@@ -382,8 +259,8 @@ public class EmailService {
             log.warn("Cannot send club leadership email: user or email is null/empty");
             return;
         }
-        if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
-            log.info("User {} is blocked or verification expired. Skipping club leadership email.", user.getUserId());
+        if (user.isBlocked()) {
+            log.info("User {} is blocked. Skipping club leadership email.", user.getUserId());
             return;
         }
 
@@ -458,8 +335,8 @@ public class EmailService {
             log.warn("Cannot send Super Student promotion email: user or email is null/empty");
             return;
         }
-        if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
-            log.info("User {} is blocked or verification expired. Skipping Super Student promotion email.", user.getUserId());
+        if (user.isBlocked()) {
+            log.info("User {} is blocked. Skipping Super Student promotion email.", user.getUserId());
             return;
         }
 
@@ -537,8 +414,8 @@ public class EmailService {
             log.warn("Cannot send Super Student demotion email: user or email is null/empty");
             return;
         }
-        if (user.isBlocked() || (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now()))) {
-            log.info("User {} is blocked or verification expired. Skipping Super Student demotion email.", user.getUserId());
+        if (user.isBlocked()) {
+            log.info("User {} is blocked. Skipping Super Student demotion email.", user.getUserId());
             return;
         }
 

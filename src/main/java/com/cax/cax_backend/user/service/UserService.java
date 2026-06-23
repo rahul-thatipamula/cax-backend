@@ -25,7 +25,6 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private static final String UPLOAD_DIR = "uploads/id-cards/";
 
     public List<User> searchUsers(String query, String collegeId) {
         List<User> users = userRepository.findByNameContainingIgnoreCaseOrEmailContainingIgnoreCase(query, query);
@@ -62,16 +61,6 @@ public class UserService {
                 user.setCaxId(generateUniqueCaxId());
                 needsSave = true;
             }
-            if (user.getIdCardExpiresAt() == null) {
-                user.setIdCardExpiresAt(java.time.Instant.now().plus(180, java.time.temporal.ChronoUnit.DAYS));
-                needsSave = true;
-            }
-        }
-
-        if (user.isIdVerified() && user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(java.time.Instant.now())) {
-            user.setIdVerified(false);
-            needsSave = true;
-            log.info("User {} verification expired. Resetting idVerified to false.", userId);
         }
 
         if (needsSave) {
@@ -94,29 +83,7 @@ public class UserService {
         return caxId;
     }
 
-    public User uploadIDCardImage(String userId, MultipartFile file) throws IOException {
-        User user = getUserByUserId(userId);
 
-        // Create uploads directory if not exists
-        Path uploadDir = Paths.get(UPLOAD_DIR);
-        Files.createDirectories(uploadDir);
-
-        // Generate unique filename
-        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-        Path filePath = uploadDir.resolve(fileName);
-
-        // Save file to disk
-        Files.write(filePath, file.getBytes());
-
-        // Update user with image path
-        String imagePath = "id-cards/" + fileName;
-        user.setIdCardImagePath(imagePath);
-        boolean wasVerifiedAndActive = user.isIdVerified() && (user.getIdCardExpiresAt() == null || user.getIdCardExpiresAt().isAfter(java.time.Instant.now()));
-        user.setIdVerified(wasVerifiedAndActive);
-
-        // Save user to MongoDB
-        return userRepository.save(user);
-    }
 
     public User blockUser(String userId, boolean blocked, String reason) {
         User user = getUserByUserId(userId);

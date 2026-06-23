@@ -26,16 +26,7 @@ public class SystemSettingController {
         return ResponseEntity.ok(ApiResponse.success(systemSettingService.getSystemSetting()));
     }
 
-    @PostMapping("/toggle-college-emails")
-    @AdminActivityLog(action = "Toggle Only Allow College Emails", resourceIdParam = "enabled")
-    public ResponseEntity<ApiResponse<SystemSetting>> toggleOnlyAllowCollegeEmails(
-            Authentication auth,
-            @RequestParam boolean enabled) {
-        checkAdmin(auth);
-        return ResponseEntity.ok(ApiResponse.success(
-                systemSettingService.updateOnlyAllowCollegeEmails(enabled)
-        ));
-    }
+
 
     @PostMapping("/version")
     @AdminActivityLog(action = "Update App Version Settings")

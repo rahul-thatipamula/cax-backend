@@ -30,7 +30,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/health",
                                 "/api/auth/google",
-                                "/api/auth/web-login",
+                                "/api/auth/preview-college",
+                                "/api/auth/report-wrong-college",
                                 "/api/auth/generate-test-token",
                                 "/api/auth/refresh",
                                 "/api/auth/qr/**",

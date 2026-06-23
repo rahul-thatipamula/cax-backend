@@ -143,7 +143,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             if (uri != null && uri.getQuery() != null) {
                 String query = uri.getQuery();
                 for (String param : query.split("&")) {
-                    String[] pair = param.split("=");
+                    // limit=2 so base64-padded JWT values with '=' are not split mid-token
+                    String[] pair = param.split("=", 2);
                     if (pair.length == 2 && "token".equals(pair[0])) {
                         return jwtUtil.extractUserId(pair[1]);
                     }
@@ -177,16 +178,24 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             messageMap.put("senderPicture", message.getSenderPicture() != null ? message.getSenderPicture() : "");
             messageMap.put("content", message.getContent());
             messageMap.put("createdAt", message.getCreatedAt().toString());
-            messageMap.put("replyToId", message.getReplyToId());
-            messageMap.put("replyToName", message.getReplyToName());
-            messageMap.put("replyToContent", message.getReplyToContent());
+            // Only include reply fields when present so receivers don't see spurious null keys
+            if (message.getReplyToId() != null) messageMap.put("replyToId", message.getReplyToId());
+            if (message.getReplyToName() != null) messageMap.put("replyToName", message.getReplyToName());
+            if (message.getReplyToContent() != null) messageMap.put("replyToContent", message.getReplyToContent());
             String messageJson = objectMapper.writeValueAsString(messageMap);
 
             Set<WebSocketSession> sessions = clubSessions.getOrDefault(clubId, Collections.emptySet());
             log.debug("Broadcasting chat message to {} session(s) in club {}", sessions.size(), clubId);
-            
+
             for (WebSocketSession session : sessions) {
-                if (session.isOpen()) {
+                if (!session.isOpen()) {
+                    // Prune stale sessions discovered during broadcast
+                    sessions.remove(session);
+                    continue;
+                }
+                // Synchronize per-session: WebSocketSession.sendMessage is not thread-safe;
+                // without this, concurrent broadcasts corrupt the WS frame.
+                synchronized (session) {
                     try {
                         session.sendMessage(new TextMessage(messageJson));
                     } catch (IOException e) {
@@ -209,6 +218,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             Set<WebSocketSession> sessions = clubSessions.get(clubId);
             if (sessions != null) {
                 sessions.remove(session);
+                if (sessions.isEmpty()) {
+                    clubSessions.remove(clubId, sessions);
+                }
             }
         }
         if (userId != null && clubId != null) {

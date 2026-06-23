@@ -37,7 +37,7 @@ public class Club {
     private boolean isApprovalRequired = false;
 
     @Builder.Default
-    private boolean allowJoining = true;
+    private boolean allowJoining = false;
 
     @Builder.Default
     private boolean isPaid = false;

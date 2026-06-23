@@ -49,6 +49,12 @@ public class Event {
     @Builder.Default
     private boolean global = false;
 
+    // When true, participants must submit ID card details (number, name on card,
+    // department/branch) while registering for this event.
+    @JsonProperty("idCardRequired")
+    @Builder.Default
+    private boolean idCardRequired = false;
+
     @Builder.Default
     private double fee = 0;
 

@@ -6,6 +6,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.List;
 
 @Document(collection = "colleges")
 @Data
@@ -24,6 +25,7 @@ public class College {
     private String university;
     private String type;
     private String logoUrl;
+    private List<String> emailDomains;
 
     @Builder.Default
     private int studentCount = 0;

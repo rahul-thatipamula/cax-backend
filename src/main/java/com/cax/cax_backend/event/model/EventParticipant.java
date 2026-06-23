@@ -35,6 +35,11 @@ public class EventParticipant {
     private String picture;
     private String college;
 
+    // ID card details collected at registration (only when the event requires it)
+    private String idCardNumber;
+    private String idCardName;        // Full name as printed on the ID card
+    private String idCardDepartment;  // Department / branch as printed on the ID card
+
     // Payment details (for paid events)
     @Builder.Default
     private double amountPaid = 0;
@@ -50,7 +55,6 @@ public class EventParticipant {
     private Instant verifiedAt;
 
     private String ticketCode;
-    private String idCardNumber;
 
     @Builder.Default
     private boolean checkedIn = false;

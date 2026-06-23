@@ -19,8 +19,7 @@ public class SystemSetting {
     @Builder.Default
     private String id = "global";
 
-    @Builder.Default
-    private boolean onlyAllowCollegeEmails = false;
+
 
     @Builder.Default
     private String latestVersion = "1.0.0";

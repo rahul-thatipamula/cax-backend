@@ -40,18 +40,12 @@ public class User {
     private boolean collegeDetailsAdded = false;
 
     @Builder.Default
-    private boolean academicDetailsAdded = false;
-
-    @Builder.Default
     private boolean idVerified = false;
-
-    private String idCardImagePath;
 
     @Builder.Default
     private boolean isOnline = false;
 
     private CollegeDetails collegeDetails;
-    private AcademicDetails academicDetails;
 
     @Builder.Default
     private double coins = 0.0;
@@ -61,8 +55,6 @@ public class User {
 
     @Builder.Default
     private double totalCoinsSpent = 0.0;
-
-    private SocialLinks socialLinks;
 
     private String fcmToken;
 
@@ -105,18 +97,11 @@ public class User {
 
     // CAX Verification details
     private String caxId;
-    private Instant idCardExpiresAt;
-
-    @Builder.Default
-    private boolean reVerificationRequested = false;
-
-    @Builder.Default
-    private int rejectionCount = 0;
 
     private String appVersion;
     private int buildNumber;
 
     @Builder.Default
-    private boolean waterReminderSubscribed = false;
+    private boolean waterReminderSubscribed = true;
     private Instant lastWaterReminderSentAt;
 }

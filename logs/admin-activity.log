@@ -11,3 +11,89 @@
 [2026-06-20 12:35:33] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=12.0.2, minRequiredVersion=12.0.2, latestBuildNumber=57, minRequiredBuildNumber=57, updateMessage=A new version of CAX is available. Please update to continue., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
 [2026-06-20 12:36:48] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=12.0.1, minRequiredVersion=12.0.2, latestBuildNumber=57, minRequiredBuildNumber=57, updateMessage=A new version of CAX is available. Please update to continue., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
 [2026-06-20 12:36:51] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=12.0.1, minRequiredVersion=12.0.1, latestBuildNumber=57, minRequiredBuildNumber=57, updateMessage=A new version of CAX is available. Please update to continue., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-21 20:32:26] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=14.0.0, minRequiredVersion=14.0.0, latestBuildNumber=60, minRequiredBuildNumber=60, updateMessage=A new version of CAX is available. Please update to continue., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-21 20:35:36] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=14.0.0, minRequiredVersion=14.0.0, latestBuildNumber=60, minRequiredBuildNumber=60, updateMessage=A new version of CAX is available. Please update to continue., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-21 20:36:05] ADMIN: 113980311909370790584 | ACTION: Toggle Ad Status | RESOURCE: 6a26d3d332cb1b50e8119f4c | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-21 20:36:05] ADMIN: 113980311909370790584 | ACTION: Toggle Ad Status | RESOURCE: 6a26d3d332cb1b50e8119f4c | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-21 21:55:03] ADMIN: 113980311909370790584 | ACTION: Verify ID Card | RESOURCE: 100503817327097941980 | DETAILS: {verificationNotes=} | STATUS: SUCCESS
+[2026-06-22 13:16:51] ADMIN: 113980311909370790584 | ACTION: Block User | RESOURCE: 105824617734257710817 | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-22 13:17:18] ADMIN: 113980311909370790584 | ACTION: Block User | RESOURCE: 105824617734257710817 | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-22 13:24:02] ADMIN: 113980311909370790584 | ACTION: Request ID Re-Verification | RESOURCE: 105824617734257710817 | DETAILS: {reason=need your id card please} | STATUS: SUCCESS
+[2026-06-22 16:40:05] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=15.0.0, minRequiredVersion=15.0.0, latestBuildNumber=61, minRequiredBuildNumber=61, updateMessage=A new version of CAX is available. Please update to continue., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-22 16:40:52] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=15.0.0, minRequiredVersion=15.0.0, latestBuildNumber=61, minRequiredBuildNumber=61, updateMessage=
+Bug fixes and performance improvements across events, profiles, and clubs.
+
+- Improved event details with better participant management and check-in experience
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen
+- Various stability improvements and UI refinements
+
+, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-22 16:41:38] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=15.0.0, minRequiredVersion=15.0.0, latestBuildNumber=61, minRequiredBuildNumber=61, updateMessage=
+Bug fixes and performance improvements across events, profiles, and clubs.
+- Auto college detection with the college mail id.
+- Improved event details with better participant management and check-in experience
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen
+- Various stability improvements and UI refinements
+
+, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-22 16:41:54] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=15.0.0, minRequiredVersion=15.0.0, latestBuildNumber=61, minRequiredBuildNumber=61, updateMessage=
+Bug fixes and performance improvements across events, profiles, and clubs.
+- Auto college detection with the college mail id.
+- Improved authentication.
+- Improved event details with better participant management and check-in experience
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen
+- Various stability improvements and UI refinements
+
+, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-22 16:42:08] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=15.0.0, minRequiredVersion=15.0.0, latestBuildNumber=61, minRequiredBuildNumber=61, updateMessage=
+Bug fixes and performance improvements across events, profiles, and clubs.
+
+- Auto college detection with the college mail id.
+- Improved authentication.
+- Improved event details with better participant management and check-in experience
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen
+- Various stability improvements and UI refinements
+
+, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-22 19:12:51] ADMIN: 113980311909370790584 | ACTION: Toggle Ad Status | RESOURCE: 6a26d3d332cb1b50e8119f4c | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-22 19:12:52] ADMIN: 113980311909370790584 | ACTION: Toggle Ad Status | RESOURCE: 6a26d3d332cb1b50e8119f4c | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-22 19:57:21] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=15.0.0, minRequiredVersion=14.0.0, latestBuildNumber=61, minRequiredBuildNumber=60, updateMessage=
+Bug fixes and performance improvements across events, profiles, and clubs.
+
+- Auto college detection with the college mail id.
+- Improved authentication.
+- Improved event details with better participant management and check-in experience
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen
+- Various stability improvements and UI refinements
+
+, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-22 21:50:37] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=16.0.0, minRequiredVersion=16.0.0, latestBuildNumber=61, minRequiredBuildNumber=62, updateMessage=
+Bug fixes and performance improvements across events, profiles, and clubs.
+
+- Auto college detection with the college mail id.
+- Improved authentication.
+- Improved event details with better participant management and check-in experience
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen
+- Various stability improvements and UI refinements
+
+, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-22 23:23:59] ADMIN: 113980311909370790584 | ACTION: Create Ad | RESOURCE: N/A | DETAILS: Ad(id=null, adId=Welcome, title=welcome, imageUrl=https://pub-6d28afd560b0498d9fea3f401d07e798.r2.dev/ads/113980311909370790584/24125117-bf9a-43aa-b73f-deba1f0992ee.png, redirectUrl=https://caxone.in, active=true, global=true, collegeId=null, maxViewsPerUser=100, closeTimerSeconds=3, totalImpressions=0, totalClicks=0, createdAt=2026-06-22T17:53:59.295337Z, updatedAt=null) | STATUS: SUCCESS
+[2026-06-22 23:24:02] ADMIN: 113980311909370790584 | ACTION: Toggle Ad Status | RESOURCE: 6a26d3d332cb1b50e8119f4c | DETAILS: N/A | STATUS: SUCCESS

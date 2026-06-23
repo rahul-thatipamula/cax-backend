@@ -51,13 +51,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(userService.getUserByUserId(userId)));
     }
 
-    @PostMapping("/{userId}/upload-id-card")
-    public ResponseEntity<ApiResponse<User>> uploadIDCard(
-            @PathVariable String userId,
-            @RequestParam("file") MultipartFile file) throws IOException {
-        User updatedUser = userService.uploadIDCardImage(userId, file);
-        return ResponseEntity.ok(ApiResponse.success(updatedUser));
-    }
+
 
     @PostMapping("/{userId}/block")
     @AdminActivityLog(action = "Block User", resourceIdParam = "userId")

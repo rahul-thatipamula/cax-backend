@@ -167,9 +167,10 @@ public class EventController {
     @PostMapping("/events/{eventId}/register")
     public ResponseEntity<ApiResponse<EventParticipant>> registerForEvent(
             Authentication auth,
-            @PathVariable String eventId) {
+            @PathVariable String eventId,
+            @RequestBody(required = false) Map<String, Object> body) {
         String userId = (String) auth.getPrincipal();
-        EventParticipant participant = eventService.registerForEvent(userId, eventId);
+        EventParticipant participant = eventService.registerForEvent(userId, eventId, body);
         return ResponseEntity.ok(ApiResponse.success("Registered successfully", participant));
     }
 

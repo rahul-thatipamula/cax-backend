@@ -29,7 +29,6 @@ public class SystemSettingService {
                 .orElseGet(() -> {
                     SystemSetting defaultSetting = SystemSetting.builder()
                             .id("global")
-                            .onlyAllowCollegeEmails(false)
                             .createdAt(Instant.now())
                             .updatedAt(Instant.now())
                             .build();
@@ -37,14 +36,6 @@ public class SystemSettingService {
                 });
     }
 
-    public SystemSetting updateOnlyAllowCollegeEmails(boolean onlyAllow) {
-        SystemSetting setting = getSystemSetting();
-        setting.setOnlyAllowCollegeEmails(onlyAllow);
-        setting.setUpdatedAt(Instant.now());
-        SystemSetting saved = systemSettingRepository.save(setting);
-        log.info("System setting 'onlyAllowCollegeEmails' updated to {}", onlyAllow);
-        return saved;
-    }
 
     public SystemSetting updateVersionSettings(VersionSettingsRequest request) {
         SystemSetting setting = getSystemSetting();

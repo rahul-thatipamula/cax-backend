@@ -57,14 +57,6 @@ public class NotificationService {
                 log.debug("User {} is blocked. Skipping notification creation.", userId);
                 return null;
             }
-            if (user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(Instant.now())) {
-                // Allow only ID verification updates to go through, block all other system/chat notifications
-                boolean isIdVerificationNotif = title != null && (title.toLowerCase().contains("id") || title.toLowerCase().contains("verify") || title.toLowerCase().contains("verification"));
-                if (!isIdVerificationNotif) {
-                    log.debug("User {} verification has expired. Skipping non-verification notification.", userId);
-                    return null;
-                }
-            }
         }
 
         boolean notificationsEnabled = true;

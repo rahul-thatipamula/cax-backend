@@ -3,6 +3,8 @@ package com.cax.cax_backend.auth.service;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -19,15 +21,13 @@ import com.cax.cax_backend.common.util.TotpUtil;
 import com.cax.cax_backend.user.event.CollegeSelectedEvent;
 import com.cax.cax_backend.user.event.UserProfileUpdatedEvent;
 import com.cax.cax_backend.user.event.UserSignupEvent;
-import com.cax.cax_backend.user.model.AcademicDetails;
 import com.cax.cax_backend.user.model.CollegeDetails;
-import com.cax.cax_backend.user.model.SocialLinks;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.cax.cax_backend.settings.model.SystemSetting;
 import com.cax.cax_backend.settings.service.SystemSettingService;
+import com.cax.cax_backend.collegereport.service.CollegeReportService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,34 +41,33 @@ public class AuthService {
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
     private final ApplicationEventPublisher eventPublisher;
     private final SystemSettingService systemSettingService;
+    private final CollegeReportService collegeReportService;
 
-
-    public AuthService(UserRepository userRepository, CollegeRepository collegeRepository, JwtUtil jwtUtil, GoogleIdTokenVerifier googleIdTokenVerifier, ApplicationEventPublisher eventPublisher, SystemSettingService systemSettingService) {
+    public AuthService(UserRepository userRepository, CollegeRepository collegeRepository, JwtUtil jwtUtil, GoogleIdTokenVerifier googleIdTokenVerifier, ApplicationEventPublisher eventPublisher, SystemSettingService systemSettingService, CollegeReportService collegeReportService) {
         this.userRepository = userRepository;
         this.collegeRepository = collegeRepository;
         this.jwtUtil = jwtUtil;
         this.googleIdTokenVerifier = googleIdTokenVerifier;
         this.eventPublisher = eventPublisher;
         this.systemSettingService = systemSettingService;
+        this.collegeReportService = collegeReportService;
     }
 
     /**
      * Google login/signup via Google ID token verification.
      */
-    public Map<String, Object> handleGoogleLoginOrSignup(String googleIdTokenStr, boolean acceptedTerms) {
+    public Map<String, Object> handleGoogleLoginOrSignup(String googleIdTokenStr) {
         try {
-            // Normalise token: strip optional "Bearer " prefix sent by some clients
             if (googleIdTokenStr != null && googleIdTokenStr.regionMatches(true, 0, "Bearer ", 0, 7)) {
                 googleIdTokenStr = googleIdTokenStr.substring(7).trim();
             }
-            // Verify Google ID token
             GoogleIdToken decodedToken = googleIdTokenVerifier.verify(googleIdTokenStr);
             if (decodedToken == null) {
                 throw new AuthException.InvalidTokenException("Google ID token signature verification failed");
             }
 
             GoogleIdToken.Payload payload = decodedToken.getPayload();
-            String uid = payload.getSubject(); // Google subject id (unique Google User ID)
+            String uid = payload.getSubject();
             String email = payload.getEmail();
             if (email != null) {
                 email = email.toLowerCase().trim();
@@ -80,144 +79,121 @@ public class AuthService {
                 throw new AuthException.InvalidTokenException("Email not found in token");
             }
 
-            SystemSetting systemSetting = systemSettingService.getSystemSetting();
-            if (systemSetting != null && systemSetting.isOnlyAllowCollegeEmails()) {
-                int atIndex = email.indexOf('@');
-                String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
+            int atIndex = email.indexOf('@');
+            String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
 
-                boolean isBypassDomain = domain.equals("caxone.in");
-                boolean isExistingAdmin = false;
+            // Find existing user by googleId or email
+            final String finalEmail = email;
+            User user = userRepository.findByGoogleId(uid)
+                    .or(() -> userRepository.findByEmail(finalEmail))
+                    .orElse(null);
 
-                // Verify if existing user is an Admin
-                User existingUser = userRepository.findByGoogleId(uid).orElse(null);
-                if (existingUser == null) {
-                    existingUser = userRepository.findByEmail(email).orElse(null);
-                }
-                if (existingUser != null && existingUser.getRole() == UserRole.ADMIN) {
-                    isExistingAdmin = true;
-                }
+            boolean isSuperStudent = user != null && user.getRole() == UserRole.SUPER_STUDENT;
+            boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
 
-                if (!isBypassDomain && !isExistingAdmin) {
-                    boolean isAcademicDomain = domain.endsWith(".edu") 
-                            || domain.endsWith(".ac.in") 
-                            || domain.endsWith(".edu.in");
-                    if (!isAcademicDomain) {
-                        throw new AuthException.ForbiddenException("Only college email logins are permitted.");
-                    }
+            if (!isSuperStudent && !isBypassEmail) {
+                boolean isAcademicDomain = domain.endsWith(".edu")
+                        || domain.endsWith(".ac.in")
+                        || domain.endsWith(".edu.in");
+                if (!isAcademicDomain) {
+                    throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
                 }
             }
 
-            // Check if user exists by googleId (which is the Google sub)
-            User user = userRepository.findByGoogleId(uid).orElse(null);
-            user = getUserAndHealIfVerified(user);
-            boolean isNewUser = false;
+            College matchedCollege = findMatchedCollege(domain);
+            if (!isSuperStudent && !isBypassEmail && matchedCollege == null) {
+                log.warn("No college match found for domain '{}'. User email: {}", domain, email);
+                throw new AuthException.ForbiddenException("College details not added yet. We haven't registered your college email domain on CAX yet.");
+            }
 
+            boolean isNewUser = false;
             if (user == null) {
-                // If not found by googleId, check by email (linking accounts)
-                user = userRepository.findByEmail(email).orElse(null);
-                user = getUserAndHealIfVerified(user);
-                if (user != null) {
-                    // Update their googleId so we can look up by googleId next time
-                    user.setGoogleId(uid);
-                    if (!user.isAcceptedTerms()) {
-                        user.setAcceptedTerms(acceptedTerms);
-                        if (acceptedTerms) {
-                            user.setAcceptedTermsAt(Instant.now());
-                        }
-                    }
-                    user.setOnline(true);
-                    user.setLastLoginAt(Instant.now());
-                    user.setLastSeenAt(Instant.now());
-                    user.setUpdatedAt(Instant.now());
-                    user = userRepository.save(user);
-                    log.info("Linked existing user by email: {}, new googleId: {}", user.getUserId(), uid);
-                } else {
-                    isNewUser = true;
-                    user = User.builder()
-                            .userId(uid)
-                            .googleId(uid)
-                            .email(email)
-                            .name(name != null ? name : email.split("@")[0])
-                            .picture(picture)
-                            .role(UserRole.STUDENT)
-                            .collegeDetailsAdded(false)
-                            .idVerified(false)
-                            .acceptedTerms(acceptedTerms)
-                            .acceptedTermsAt(acceptedTerms ? Instant.now() : null)
-                            .isOnline(true)
-                            .lastLoginAt(Instant.now())
-                            .lastSeenAt(Instant.now())
-                            .build();
-                    user = userRepository.save(user);
-                    log.info("New user created: {}", uid);
-                    eventPublisher.publishEvent(new UserSignupEvent(this, user));
+                isNewUser = true;
+                User.UserBuilder userBuilder = User.builder()
+                        .userId(uid)
+                        .googleId(uid)
+                        .email(email)
+                        .name(name != null ? name : email.split("@")[0])
+                        .picture(picture)
+                        .role(UserRole.STUDENT)
+                        .acceptedTerms(false)
+                        .acceptedTermsAt(null)
+                        .isOnline(true)
+                        .lastLoginAt(Instant.now())
+                        .lastSeenAt(Instant.now());
+
+                user = userBuilder.build();
+                boolean collegeAssigned = updateCollegeDetailsIfMatched(user, matchedCollege);
+                if (collegeAssigned) {
+                    log.info("Auto-assigned college '{}' to new user: {}", matchedCollege.getCollegeName(), user.getUserId());
+                }
+                user = userRepository.save(user);
+                log.info("New user created: {}", uid);
+                eventPublisher.publishEvent(new UserSignupEvent(this, user));
+                if (collegeAssigned) {
+                    eventPublisher.publishEvent(new CollegeSelectedEvent(this, user));
                 }
             } else {
-                // Update terms if not accepted
-                if (!user.isAcceptedTerms()) {
-                    user.setAcceptedTerms(acceptedTerms);
-                    if (acceptedTerms) {
-                        user.setAcceptedTermsAt(Instant.now());
-                    }
-                    user.setUpdatedAt(Instant.now());
+                if (user.getGoogleId() == null || user.getGoogleId().isEmpty()) {
+                    user.setGoogleId(uid);
                 }
-                // Update picture if changed
                 if (picture != null && !picture.equals(user.getPicture())) {
                     user.setPicture(picture);
-                    user.setUpdatedAt(Instant.now());
                 }
-                // Track login
+
+                boolean collegeHealed = updateCollegeDetailsIfMatched(user, matchedCollege);
+                if (collegeHealed) {
+                    log.info("Auto-healed college '{}' for existing user: {}", matchedCollege.getCollegeName(), user.getUserId());
+                }
+
                 user.setOnline(true);
                 user.setLastLoginAt(Instant.now());
                 user.setLastSeenAt(Instant.now());
+                user.setUpdatedAt(Instant.now());
                 user = userRepository.save(user);
                 log.info("Existing user logged in: {}", user.getUserId());
+                if (collegeHealed) {
+                    eventPublisher.publishEvent(new CollegeSelectedEvent(this, user));
+                }
             }
 
-            // Generate JWT using the user's permanent userId (Google sub)
-            boolean isAdmin = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
-            
+            // Ensure CAX ID is assigned immediately on every login
+            if (user.isIdVerified() && (user.getCaxId() == null || user.getCaxId().isEmpty())) {
+                user.setCaxId(generateUniqueCaxId());
+                user = userRepository.save(user);
+                log.info("CAX ID generated for user {} on login", user.getUserId());
+            }
+
+            boolean hasElevatedAccess = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+
             if (user.isTwoFactorEnabled()) {
-                String tempToken = jwtUtil.generateTemp2FaToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-                Map<String, Object> result = new HashMap<>();
-                result.put("success", true);
-                result.put("twoFactorRequired", true);
-                result.put("tempToken", tempToken);
-                result.put("message", "Two-factor authentication required");
-                return result;
+                String tempToken = jwtUtil.generateTemp2FaToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+                return Map.of(
+                        "success", true,
+                        "twoFactorRequired", true,
+                        "tempToken", tempToken,
+                        "message", "Two-factor authentication required"
+                );
             }
 
-            String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-            String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+            String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+            String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
 
-            // Save refresh token to user
             if (user.getRefreshTokens() == null) {
-                user.setRefreshTokens(new java.util.ArrayList<>());
+                user.setRefreshTokens(new ArrayList<>());
             }
             user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
             userRepository.save(user);
 
-            // Determine redirect
-            String redirect;
-            String message;
-            if (!user.isCollegeDetailsAdded()) {
-                redirect = "/college";
-                message = "College details missing. Please complete profile.";
-            } else if (!user.isAcademicDetailsAdded()) {
-                redirect = "/academic";
-                message = "Academic details missing. Please complete profile.";
-            } else {
-                redirect = "/app";
-                message = "Login Successful.";
-            }
+            Map<String, String> redirectInfo = determineRedirect(user);
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("token", token);
             result.put("refreshToken", refreshToken);
             result.put("userId", user.getUserId());
-            result.put("message", message);
-            result.put("redirect", redirect);
+            result.put("message", redirectInfo.get("message"));
+            result.put("redirect", redirectInfo.get("redirect"));
             result.put("user", user);
             result.put("isNewUser", isNewUser);
             return result;
@@ -225,151 +201,10 @@ public class AuthService {
         } catch (AuthException.InvalidTokenException | AuthException.ForbiddenException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Google login/signup failed — token: {} … cause: {}: {}", 
-                (googleIdTokenStr != null && googleIdTokenStr.length() > 20) ? googleIdTokenStr.substring(0,20) + "..." : googleIdTokenStr,
-                e.getClass().getSimpleName(), e.getMessage(), e);
+            log.error("Google login failed — cause: {}: {}", e.getClass().getSimpleName(), e.getMessage(), e);
             throw new AuthException.InvalidTokenException("Google login failed: " + e.getMessage());
         }
     }
-
-    /**
-     * Web login via email checking.
-     */
-    public Map<String, Object> handleWebLogin(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new AuthException.UserNotFoundException(email));
-
-        // Generate JWT using the user's permanent userId (Google sub)
-        boolean isAdmin = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
-        
-        if (user.isTwoFactorEnabled()) {
-            String tempToken = jwtUtil.generateTemp2FaToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("twoFactorRequired", true);
-            result.put("tempToken", tempToken);
-            result.put("message", "Two-factor authentication required");
-            return result;
-        }
-
-        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-        String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-
-        // Save refresh token to user
-        if (user.getRefreshTokens() == null) {
-            user.setRefreshTokens(new java.util.ArrayList<>());
-        }
-        user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
-        
-        // Track login
-        user.setOnline(true);
-        user.setLastLoginAt(Instant.now());
-        user.setLastSeenAt(Instant.now());
-        user.setUpdatedAt(Instant.now());
-        
-        userRepository.save(user);
-
-        // Determine redirect
-        String redirect;
-        String message;
-        if (!user.isCollegeDetailsAdded()) {
-            redirect = "/college";
-            message = "College details missing. Please complete profile.";
-        } else if (!user.isAcademicDetailsAdded()) {
-            redirect = "/academic";
-            message = "Academic details missing. Please complete profile.";
-        } else {
-            redirect = "/app";
-            message = "Login Successful.";
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("token", token);
-        result.put("refreshToken", refreshToken);
-        result.put("userId", user.getUserId());
-        result.put("message", message);
-        result.put("redirect", redirect);
-        result.put("user", user);
-        result.put("isNewUser", false);
-        return result;
-    }
-
-
-    /**
-     * Web login via Google ID Token (verifying OAuth token and admin role).
-     */
-    public Map<String, Object> handleWebGoogleLogin(String googleIdTokenStr) {
-        try {
-            // Normalise token: strip optional "Bearer " prefix sent by some clients
-            if (googleIdTokenStr != null && googleIdTokenStr.regionMatches(true, 0, "Bearer ", 0, 7)) {
-                googleIdTokenStr = googleIdTokenStr.substring(7).trim();
-            }
-            // Verify Google ID token
-            GoogleIdToken decodedToken = googleIdTokenVerifier.verify(googleIdTokenStr);
-            if (decodedToken == null) {
-                throw new AuthException.InvalidTokenException("Google ID token verification failed");
-            }
-
-            GoogleIdToken.Payload payload = decodedToken.getPayload();
-            String email = payload.getEmail();
-            if (email != null) {
-                email = email.toLowerCase().trim();
-            }
-            if (email == null || email.isBlank()) {
-                throw new AuthException.InvalidTokenException("Email not found in token");
-            }
-
-            // Find existing user by email
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new AuthException.UserNotFoundException("Please register an account via the mobile app first."));
-
-            // Check if the user has Admin privileges
-            boolean isAdmin = user.getRole() == UserRole.ADMIN 
-                    || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
-            
-            if (!isAdmin) {
-                throw new AuthException.ForbiddenException("Access Denied: You do not have admin permissions.");
-            }
-
-            String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-            String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-
-            // Save refresh token to user
-            if (user.getRefreshTokens() == null) {
-                user.setRefreshTokens(new java.util.ArrayList<>());
-            }
-            user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
-            
-            // Track login
-            user.setOnline(true);
-            user.setLastLoginAt(Instant.now());
-            user.setLastSeenAt(Instant.now());
-            user.setUpdatedAt(Instant.now());
-
-            userRepository.save(user);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("token", token);
-            result.put("refreshToken", refreshToken);
-            result.put("userId", user.getUserId());
-            result.put("user", Map.of(
-                    "id", user.getUserId(),
-                    "email", user.getEmail(),
-                    "name", user.getName() != null ? user.getName() : "User",
-                    "role", user.getRole().getValue()
-            ));
-            result.put("message", "Web login successful");
-            return result;
-        } catch (AuthException.InvalidTokenException | AuthException.ForbiddenException | AuthException.UserNotFoundException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Google Web login failed: {}", e.getMessage(), e);
-            throw new AuthException.InvalidTokenException("Google Web login failed: " + e.getMessage());
-        }
-    }
-
 
     /**
      * Get user by JWT token.
@@ -378,78 +213,27 @@ public class AuthService {
         String userId = jwtUtil.extractUserId(token);
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(AuthException.UserNotFoundException::new);
-        return getUserAndHealIfVerified(user);
-    }
 
-    /**
-     * Add college details.
-     */
-    public Map<String, Object> addCollegeDetails(String token, String collegeId) {
-        String userId = jwtUtil.extractUserId(token);
-        User user = userRepository.findByUserId(userId)
-                .orElseThrow(AuthException.UserNotFoundException::new);
+        String email = user.getEmail() != null ? user.getEmail().toLowerCase().trim() : "";
+        int atIndex = email.indexOf('@');
+        String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
+        boolean isSuperStudent = user.getRole() == UserRole.SUPER_STUDENT;
+        boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
 
-        College college = collegeRepository.findById(collegeId)
-                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("College", collegeId));
-
-        boolean isFirstTime = !user.isCollegeDetailsAdded();
-
-        user.setCollegeDetails(CollegeDetails.builder()
-                .collegeId(collegeId)
-                .collegeName(college.getCollegeName())
-                .collegeCode(college.getCollegeCode())
-                .location(college.getLocation())
-                .build());
-        user.setCollegeDetailsAdded(true);
-        user.setCollegeAddedAt(Instant.now());
-        user.setUpdatedAt(Instant.now());
-        user = userRepository.save(user);
-
-        log.info("College details added for user: {}", userId);
-
-        if (isFirstTime) {
-            eventPublisher.publishEvent(new CollegeSelectedEvent(this, user));
+        if (!isSuperStudent && !isBypassEmail) {
+            boolean isAcademicDomain = domain.endsWith(".edu")
+                    || domain.endsWith(".ac.in")
+                    || domain.endsWith(".edu.in");
+            if (!isAcademicDomain) {
+                throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
+            }
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("message", "College details added successfully");
-        result.put("user", user);
-        return result;
-    }
-
-    /**
-     * Add academic details.
-     */
-    public Map<String, Object> addAcademicDetails(String token, int admissionBatch, int currentAcademicYear, int currentSemester) {
-        String userId = jwtUtil.extractUserId(token);
-        User user = userRepository.findByUserId(userId)
-                .orElseThrow(AuthException.UserNotFoundException::new);
-
-        if (currentAcademicYear < 1 || currentAcademicYear > 4) {
-            throw new BusinessException.BadRequestException("Academic year must be between 1 and 4");
+        user = getUserAndHealIfVerified(user);
+        if (!isSuperStudent && !isBypassEmail && !hasCollegeDetails(user)) {
+            throw new AuthException.ForbiddenException("College details not added yet. We haven't registered your college email domain on CAX yet.");
         }
-        if (currentSemester < 1 || currentSemester > 2) {
-            throw new BusinessException.BadRequestException("Semester must be 1 or 2");
-        }
-
-        user.setAcademicDetails(AcademicDetails.builder()
-                .admissionBatch(admissionBatch)
-                .currentAcademicYear(currentAcademicYear)
-                .currentSemester(currentSemester)
-                .updatedAt(Instant.now())
-                .build());
-        user.setAcademicDetailsAdded(true);
-        user.setUpdatedAt(Instant.now());
-        user = userRepository.save(user);
-
-        log.info("Academic details added for user: {}", userId);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("message", "Academic details added successfully");
-        result.put("user", user);
-        return result;
+        return user;
     }
 
     /**
@@ -467,7 +251,6 @@ public class AuthService {
     /**
      * Update user profile fields.
      */
-    @SuppressWarnings("unchecked")
     public User updateUser(String token, Map<String, Object> updates) {
         String userId = jwtUtil.extractUserId(token);
         User user = userRepository.findByUserId(userId)
@@ -508,19 +291,6 @@ public class AuthService {
         if (updates.containsKey("premiumMusicLink")) {
             user.setPremiumMusicLink((String) updates.get("premiumMusicLink"));
         }
-        if (updates.containsKey("socialLinks") && updates.get("socialLinks") != null) {
-            Map<String, Object> socialLinksMap = (Map<String, Object>) updates.get("socialLinks");
-            SocialLinks socialLinks = new SocialLinks(
-                    (String) socialLinksMap.get("instagram"),
-                    (String) socialLinksMap.get("twitter"),
-                    (String) socialLinksMap.get("linkedin"),
-                    (String) socialLinksMap.get("github"),
-                    (String) socialLinksMap.get("whatsapp"),
-                    (String) socialLinksMap.get("telegram"),
-                    (String) socialLinksMap.get("website")
-            );
-            user.setSocialLinks(socialLinks);
-        }
 
         user.setUpdatedAt(Instant.now());
         user = userRepository.save(user);
@@ -537,7 +307,9 @@ public class AuthService {
                 .or(() -> userRepository.findById(userId))
                 .orElseGet(() -> {
                     log.info("Test user not found, generating mock user: {}", userId);
-                    UserRole defaultRole = userId.toLowerCase().contains("admin") ? UserRole.ADMIN : UserRole.STUDENT;
+                    UserRole defaultRole = userId.toLowerCase().contains("super_student")
+                            ? UserRole.SUPER_STUDENT
+                            : UserRole.STUDENT;
                     User newUser = User.builder()
                             .userId(userId)
                             .googleId("mock_google_" + userId)
@@ -551,40 +323,27 @@ public class AuthService {
                                     .collegeCode("CAXU")
                                     .location("CAX HQ")
                                     .build())
-                            .academicDetailsAdded(true)
-                            .academicDetails(com.cax.cax_backend.user.model.AcademicDetails.builder()
-                                    .admissionBatch(2023)
-                                    .currentAcademicYear(3)
-                                    .currentSemester(1)
-                                    .build())
-                            .idVerified(defaultRole == UserRole.ADMIN)
+                            .idVerified(defaultRole == UserRole.SUPER_STUDENT)
                             .acceptedTerms(true)
                             .acceptedTermsAt(Instant.now())
                             .createdAt(Instant.now())
                             .build();
-                    User savedUser = userRepository.save(newUser);
-                    
-
-                    
-                    return savedUser;
+                    return userRepository.save(newUser);
                 });
 
-        boolean isAdmin = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
-        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-        String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+        boolean hasElevatedAccess = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
 
-        // Save refresh token to user
         if (user.getRefreshTokens() == null) {
-            user.setRefreshTokens(new java.util.ArrayList<>());
+            user.setRefreshTokens(new ArrayList<>());
         }
         user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
-        
-        // Track login
+
         user.setOnline(true);
         user.setLastLoginAt(Instant.now());
         user.setLastSeenAt(Instant.now());
         user.setUpdatedAt(Instant.now());
-
         userRepository.save(user);
 
         Map<String, Object> result = new HashMap<>();
@@ -634,18 +393,30 @@ public class AuthService {
                 throw new AuthException.InvalidTokenException("Refresh token is invalid or has been revoked");
             }
 
-            // Remove the old refresh token (rotation)
             if (containsLegacy) {
                 user.getRefreshTokens().remove(refreshToken);
             } else {
                 user.getRefreshTokens().remove(tokenHash);
             }
 
-            // Generate new access and refresh tokens
-            boolean isAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN 
-                    || (user.getRole() == com.cax.cax_backend.common.enums.UserRole.SUPER_STUDENT && user.isIdVerified());
-            String newAccessToken = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-            String newRefreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+            // Block personal-email users from silently refreshing past the domain gate
+            String userEmail = user.getEmail() != null ? user.getEmail().toLowerCase().trim() : "";
+            int atIdx = userEmail.indexOf('@');
+            String userDomain = atIdx != -1 ? userEmail.substring(atIdx + 1) : "";
+            boolean isSuperStudent = user.getRole() == UserRole.SUPER_STUDENT;
+            boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(userEmail);
+            if (!isSuperStudent && !isBypassEmail) {
+                boolean isAcademicDomain = userDomain.endsWith(".edu")
+                        || userDomain.endsWith(".ac.in")
+                        || userDomain.endsWith(".edu.in");
+                if (!isAcademicDomain) {
+                    throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
+                }
+            }
+
+            boolean hasElevatedAccess = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+            String newAccessToken = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+            String newRefreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
 
             user.getRefreshTokens().add(EncryptionUtils.hashSHA256(newRefreshToken));
             userRepository.save(user);
@@ -677,7 +448,7 @@ public class AuthService {
     public Map<String, Object> generate2FaSetup(String userId) {
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(AuthException.UserNotFoundException::new);
-        
+
         String secret = TotpUtil.generateSecretKey();
         user.setTwoFactorSecret(EncryptionUtils.encrypt(secret));
         userRepository.save(user);
@@ -760,67 +531,128 @@ public class AuthService {
             throw new BusinessException.BadRequestException("Invalid verification code");
         }
 
-        // Generate final JWT
-        boolean isAdmin = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
-        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
-        String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), isAdmin);
+        // Ensure CAX ID is assigned immediately on 2FA login completion
+        if (user.isIdVerified() && (user.getCaxId() == null || user.getCaxId().isEmpty())) {
+            user.setCaxId(generateUniqueCaxId());
+            log.info("CAX ID generated for user {} on 2FA login", user.getUserId());
+        }
 
-        // Save refresh token to user
+        boolean hasElevatedAccess = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+
         if (user.getRefreshTokens() == null) {
-            user.setRefreshTokens(new java.util.ArrayList<>());
+            user.setRefreshTokens(new ArrayList<>());
         }
         user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
-        
-        // Track login
+
         user.setOnline(true);
         user.setLastLoginAt(Instant.now());
         user.setLastSeenAt(Instant.now());
         user.setUpdatedAt(Instant.now());
-
         userRepository.save(user);
 
-        // Determine redirect
-        String redirect;
-        String message;
-        if (!user.isCollegeDetailsAdded()) {
-            redirect = "/college";
-            message = "College details missing. Please complete profile.";
-        } else if (!user.isAcademicDetailsAdded()) {
-            redirect = "/academic";
-            message = "Academic details missing. Please complete profile.";
-        } else {
-            redirect = "/app";
-            message = "Login Successful.";
-        }
+        Map<String, String> redirectInfo = determineRedirect(user);
 
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
         result.put("token", token);
         result.put("refreshToken", refreshToken);
         result.put("userId", user.getUserId());
-        result.put("message", message);
-        result.put("redirect", redirect);
+        result.put("message", redirectInfo.get("message"));
+        result.put("redirect", redirectInfo.get("redirect"));
         result.put("user", user);
         return result;
+    }
+
+    private College findMatchedCollege(String domain) {
+        List<College> activeColleges = collegeRepository.findByIsActiveTrue();
+        for (College college : activeColleges) {
+            if (college.getEmailDomains() != null && !college.getEmailDomains().isEmpty()) {
+                for (String rawDomain : college.getEmailDomains()) {
+                    if (rawDomain == null || rawDomain.isBlank()) continue;
+                    String baseDomain = rawDomain.trim().toLowerCase();
+                    if (baseDomain.startsWith("@")) {
+                        baseDomain = baseDomain.substring(1);
+                    }
+                    if (domain.equalsIgnoreCase(baseDomain) || domain.endsWith("." + baseDomain)) {
+                        return college;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean updateCollegeDetailsIfMatched(User user, College matchedCollege) {
+        boolean needsCollegeUpdate = !user.isCollegeDetailsAdded()
+                || user.getCollegeDetails() == null
+                || user.getCollegeDetails().getCollegeId() == null
+                || user.getCollegeDetails().getCollegeId().isEmpty()
+                || (matchedCollege != null && !matchedCollege.getId().equals(user.getCollegeDetails().getCollegeId()));
+        if (matchedCollege != null && needsCollegeUpdate) {
+            boolean isFirstAssignment = !hasCollegeDetails(user);
+            user.setCollegeDetailsAdded(true);
+            user.setCollegeDetails(CollegeDetails.builder()
+                    .collegeId(matchedCollege.getId())
+                    .collegeName(matchedCollege.getCollegeName())
+                    .collegeCode(matchedCollege.getCollegeCode())
+                    .location(matchedCollege.getLocation())
+                    .build());
+            if (isFirstAssignment || user.getCollegeAddedAt() == null) {
+                user.setCollegeAddedAt(Instant.now());
+            }
+            user.setUpdatedAt(Instant.now());
+            user.setIdVerified(true);
+            if (user.getCaxId() == null || user.getCaxId().isEmpty()) {
+                user.setCaxId(generateUniqueCaxId());
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasCollegeDetails(User user) {
+        return user.isCollegeDetailsAdded()
+                && user.getCollegeDetails() != null
+                && user.getCollegeDetails().getCollegeId() != null
+                && !user.getCollegeDetails().getCollegeId().isBlank();
+    }
+
+    private Map<String, String> determineRedirect(User user) {
+        String redirect;
+        String message;
+        if (!user.isAcceptedTerms()) {
+            redirect = "/terms-acceptance";
+            message = "Terms acceptance required.";
+        } else {
+            redirect = "/app";
+            message = "Login Successful.";
+        }
+        return Map.of("redirect", redirect, "message", message);
     }
 
     private User getUserAndHealIfVerified(User user) {
         if (user == null) return null;
         boolean needsSave = false;
+
+        if (!hasCollegeDetails(user)) {
+            String email = user.getEmail() != null ? user.getEmail().toLowerCase().trim() : "";
+            int atIndex = email.indexOf('@');
+            String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
+            College matchedCollege = findMatchedCollege(domain);
+            if (matchedCollege != null && updateCollegeDetailsIfMatched(user, matchedCollege)) {
+                needsSave = true;
+                log.info("Auto-healed college details for user: {} with college: {}", user.getUserId(), matchedCollege.getCollegeName());
+                eventPublisher.publishEvent(new CollegeSelectedEvent(this, user));
+            }
+        }
+
         if (user.isIdVerified()) {
             if (user.getCaxId() == null || user.getCaxId().isEmpty()) {
                 user.setCaxId(generateUniqueCaxId());
                 needsSave = true;
             }
-            if (user.getIdCardExpiresAt() == null) {
-                user.setIdCardExpiresAt(Instant.now().plus(180, java.time.temporal.ChronoUnit.DAYS));
-                needsSave = true;
-            }
-        }
-        if (user.isIdVerified() && user.getIdCardExpiresAt() != null && user.getIdCardExpiresAt().isBefore(Instant.now())) {
-            user.setIdVerified(false);
-            needsSave = true;
-            log.info("User {} verification expired. Resetting idVerified to false.", user.getUserId());
         }
         if (needsSave) {
             user = userRepository.save(user);
@@ -840,5 +672,99 @@ public class AuthService {
             caxId = sb.toString();
         } while (userRepository.existsByCaxId(caxId));
         return caxId;
+    }
+
+    /**
+     * Preview the college that would be mapped for a Google ID token — no account created.
+     */
+    public Map<String, Object> previewCollege(String googleIdTokenStr) {
+        GoogleIdToken.Payload payload = verifyGoogleIdToken(googleIdTokenStr);
+        String email = payload.getEmail().toLowerCase().trim();
+        String name = (String) payload.get("name");
+        String picture = (String) payload.get("picture");
+        int atIndex = email.indexOf('@');
+        String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
+
+        String uid = payload.getSubject();
+        User existingDbUser = userRepository.findByGoogleId(uid)
+                .or(() -> userRepository.findByEmail(email))
+                .orElse(null);
+        boolean existingUser = existingDbUser != null;
+
+        boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
+        boolean isAcademicDomain = domain.endsWith(".edu")
+                || domain.endsWith(".ac.in")
+                || domain.endsWith(".edu.in");
+
+        // If existing user, also validate their stored email domain.
+        // Blocks users who registered with a personal email before restrictions were in place.
+        if (existingDbUser != null && !isBypassEmail) {
+            String storedEmail = existingDbUser.getEmail() != null
+                    ? existingDbUser.getEmail().toLowerCase().trim()
+                    : email;
+            int storedAt = storedEmail.indexOf('@');
+            String storedDomain = storedAt != -1 ? storedEmail.substring(storedAt + 1) : "";
+            boolean storedIsAcademic = storedDomain.endsWith(".edu")
+                    || storedDomain.endsWith(".ac.in")
+                    || storedDomain.endsWith(".edu.in");
+            if (!storedIsAcademic) {
+                isAcademicDomain = false;
+            }
+        }
+
+        boolean hasPendingReport = collegeReportService.hasPendingReport(email);
+
+        College matched = findMatchedCollege(domain);
+        Map<String, Object> result = new HashMap<>();
+        result.put("email", email);
+        result.put("name", name);
+        result.put("picture", picture);
+        result.put("domain", domain);
+        result.put("existingUser", existingUser);
+        result.put("isAcademicDomain", isAcademicDomain || isBypassEmail);
+        result.put("hasPendingReport", hasPendingReport);
+        result.put("collegeFound", matched != null);
+        if (matched != null) {
+            result.put("collegeId", matched.getId());
+            result.put("collegeName", matched.getCollegeName());
+            result.put("collegeCode", matched.getCollegeCode());
+            result.put("location", matched.getLocation());
+            result.put("university", matched.getUniversity());
+            result.put("type", matched.getType());
+            result.put("logoUrl", matched.getLogoUrl());
+            result.put("studentCount", matched.getStudentCount());
+        }
+        return result;
+    }
+
+    /**
+     * Save a wrong-college report — no account created.
+     */
+    public void reportWrongCollege(String googleIdTokenStr, String reason) {
+        GoogleIdToken.Payload payload = verifyGoogleIdToken(googleIdTokenStr);
+        String email = payload.getEmail().toLowerCase().trim();
+        String name = (String) payload.get("name");
+        String picture = (String) payload.get("picture");
+        int atIndex = email.indexOf('@');
+        String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
+
+        College matched = findMatchedCollege(domain);
+        String collegeName = matched != null ? matched.getCollegeName() : null;
+        String collegeId = matched != null ? matched.getId() : null;
+
+        collegeReportService.createReport(email, domain, name, picture, collegeName, collegeId, reason);
+        log.info("Wrong-college report saved for email={}", email);
+    }
+
+    private GoogleIdToken.Payload verifyGoogleIdToken(String tokenStr) {
+        try {
+            GoogleIdToken idToken = googleIdTokenVerifier.verify(tokenStr);
+            if (idToken == null) throw new AuthException.InvalidTokenException("Google ID token verification failed");
+            return idToken.getPayload();
+        } catch (AuthException.InvalidTokenException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AuthException.InvalidTokenException("Google ID token signature verification failed");
+        }
     }
 }

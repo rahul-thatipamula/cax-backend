@@ -6,7 +6,6 @@ public class NotificationEnums {
 
     public enum NotificationType {
         FEED("feed"), SYSTEM("system"),
-        ID_CARD("id_card"),
         CLUB_CHAT("club_chat"),
         EVENT("event");
         private final String value;

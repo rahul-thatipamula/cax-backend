@@ -70,6 +70,18 @@ else
     echo "⚠️ Warning: No local .env file found in cax_backend root. Secrets will not be sync'd."
 fi
 
+# Upload Firebase service account JSON if it exists locally
+LOCAL_SA_FILE="${FIREBASE_SERVICE_ACCOUNT_LOCAL:-/opt/myapp/service-account.json}"
+REMOTE_SA_FILE="$REMOTE_DIR/service-account.json"
+if [ -f "$LOCAL_SA_FILE" ]; then
+    echo "🔑 Uploading Firebase service account..."
+    scp_cmd "$LOCAL_SA_FILE" "$VM_USER@$VM_HOST:$REMOTE_SA_FILE"
+    ssh_cmd "chmod 600 $REMOTE_SA_FILE"
+    echo "✅ Service account uploaded to $REMOTE_SA_FILE"
+else
+    echo "⚠️ Warning: Firebase service account not found at $LOCAL_SA_FILE. Push notifications may not work."
+fi
+
 # Step 4: Start application on VM using Systemd
 echo "🔄 Step 4: Starting application on AWS EC2..."
 ssh_cmd "sudo systemctl start cax-backend"

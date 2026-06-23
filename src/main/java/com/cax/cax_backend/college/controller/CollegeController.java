@@ -110,6 +110,7 @@ public class CollegeController {
         existing.setUniversity(updated.getUniversity());
         existing.setType(updated.getType());
         existing.setLogoUrl(updated.getLogoUrl());
+        existing.setEmailDomains(updated.getEmailDomains());
         existing.setActive(updated.isActive());
         existing.setUpdatedAt(Instant.now());
         College saved = repo.save(existing);
