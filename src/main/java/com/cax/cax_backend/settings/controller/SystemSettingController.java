@@ -28,6 +28,17 @@ public class SystemSettingController {
 
 
 
+    @PostMapping("/play-store-testing")
+    @AdminActivityLog(action = "Toggle Play Store Testing Mode")
+    public ResponseEntity<ApiResponse<SystemSetting>> setPlayStoreTesting(
+            Authentication auth,
+            @RequestParam boolean enabled) {
+        checkAdmin(auth);
+        return ResponseEntity.ok(ApiResponse.success(
+                systemSettingService.setPlayStoreTesting(enabled)
+        ));
+    }
+
     @PostMapping("/version")
     @AdminActivityLog(action = "Update App Version Settings")
     public ResponseEntity<ApiResponse<SystemSetting>> updateVersionSettings(

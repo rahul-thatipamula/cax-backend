@@ -4,6 +4,7 @@ import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.notification.model.Notification;
 import com.cax.cax_backend.notification.service.NotificationService;
 import com.cax.cax_backend.common.enums.NotificationEnums;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -22,13 +23,17 @@ public class NotificationController {
     }
 
     @PostMapping("/{id}/read")
-    public ResponseEntity<ApiResponse<Void>> markAsRead(@PathVariable String id) {
-        service.markAsRead(id); return ResponseEntity.ok(ApiResponse.success("Marked as read"));
+    public ResponseEntity<ApiResponse<Void>> markAsRead(Authentication auth, @PathVariable String id) {
+        String userId = (String) auth.getPrincipal();
+        service.markAsRead(userId, id);
+        return ResponseEntity.ok(ApiResponse.success("Marked as read"));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
-        service.deleteNotification(id); return ResponseEntity.ok(ApiResponse.success("Deleted"));
+    public ResponseEntity<ApiResponse<Void>> delete(Authentication auth, @PathVariable String id) {
+        String userId = (String) auth.getPrincipal();
+        service.deleteNotification(userId, id);
+        return ResponseEntity.ok(ApiResponse.success("Deleted"));
     }
 
     @GetMapping("/unread-count")
@@ -38,12 +43,15 @@ public class NotificationController {
 
     @PostMapping("/send-custom")
     public ResponseEntity<ApiResponse<Void>> sendCustomNotification(
+            Authentication auth,
             @RequestBody Map<String, Object> body) {
-        String targetType = (String) body.get("targetType"); // "ALL", "INDIVIDUAL", or "COLLEGE"
+        checkAdmin(auth);
+        String targetType = (String) body.get("targetType");
         String title = (String) body.get("title");
         String bodyText = (String) body.get("body");
-        String userId = (String) body.get("userId"); // Required if INDIVIDUAL
-        String collegeId = (String) body.get("collegeId"); // Required if COLLEGE
+        String userId = (String) body.get("userId");
+        String collegeId = (String) body.get("collegeId");
+        @SuppressWarnings("unchecked")
         Map<String, String> data = (Map<String, String>) body.get("data");
 
         if (title == null || title.isBlank() || bodyText == null || bodyText.isBlank()) {
@@ -67,5 +75,16 @@ public class NotificationController {
         }
 
         return ResponseEntity.ok(ApiResponse.success("Custom notification processed successfully"));
+    }
+
+    private void checkAdmin(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        Claims claims = (Claims) auth.getCredentials();
+        Boolean isAdmin = claims.get("isAdmin", Boolean.class);
+        if (!Boolean.TRUE.equals(isAdmin)) {
+            throw new com.cax.cax_backend.common.exception.AuthException.AdminOnlyException();
+        }
     }
 }

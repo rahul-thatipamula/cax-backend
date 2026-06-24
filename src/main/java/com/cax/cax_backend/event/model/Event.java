@@ -1,5 +1,10 @@
 package com.cax.cax_backend.event.model;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -31,8 +36,15 @@ public class Event {
     private String clubId;
 
     private String createdByUserId;
+
+    @NotBlank(message = "Event name is required")
+    @Size(min = 3, max = 100, message = "Event name must be between 3 and 100 characters")
     private String name;
+
+    @NotBlank(message = "Description is required")
+    @Size(min = 10, max = 3000, message = "Description must be between 10 and 3000 characters")
     private String description;
+
     private String logo; // Cloudflare R2 Storage URL
 
     // Dates
@@ -55,10 +67,14 @@ public class Event {
     @Builder.Default
     private boolean idCardRequired = false;
 
+    @DecimalMin(value = "0", message = "Fee cannot be negative")
+    @DecimalMax(value = "999999", message = "Fee cannot exceed ₹9,99,999")
     @Builder.Default
     private double fee = 0;
 
+    @Size(max = 60, message = "UPI ID cannot exceed 60 characters")
     private String upiId;
+
     private String upiQrCode; // Cloudflare R2 Storage URL of QR code image
 
     // Status: ACTIVE, COMPLETED, CANCELLED
@@ -68,12 +84,22 @@ public class Event {
     @Builder.Default
     private Instant createdAt = Instant.now();
 
+    @Size(max = 9, message = "An event can have at most 9 gallery images")
     private List<String> eventImages;
 
+    @Valid
+    @Size(max = 4, message = "An event can have at most 4 coordinators")
     private List<EventCoordinator> coordinators;
 
-    private List<String> guidelines;
+    @Size(max = 20, message = "An event can have at most 20 guidelines")
+    private List<@NotBlank(message = "Guideline cannot be blank") @Size(min = 3, max = 300, message = "Each guideline must be between 3 and 300 characters") String> guidelines;
+
+    @Valid
+    @Size(max = 5, message = "An event can have at most 5 jury members")
     private List<EventJury> jury;
+
+    @Valid
+    @Size(max = 5, message = "An event can have at most 5 guests")
     private List<EventGuest> guests;
 
     private String collegeId;
@@ -84,7 +110,19 @@ public class Event {
 
     private Instant updatedAt;
 
+    @Size(max = 500, message = "Website URL cannot exceed 500 characters")
     private String websiteUrl;
+
+    // When true, registration and payment are handled on an external platform.
+    // CAX only shows event info; isPaid, fee, upiId, upiQrCode, and idCardRequired
+    // must remain false/null — enforced server-side regardless of client payload.
+    @JsonProperty("isExternallyManaged")
+    @Builder.Default
+    private boolean isExternallyManaged = false;
+
+    // Required when isExternallyManaged is true. Must be a valid https:// URL.
+    @Size(max = 500, message = "Registration link cannot exceed 500 characters")
+    private String externalRegistrationUrl;
 
     public List<EventCoordinator> getCoordinators() {
         return coordinators == null ? new java.util.ArrayList<>() : coordinators;

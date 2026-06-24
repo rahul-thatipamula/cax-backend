@@ -76,6 +76,8 @@ public class ClubPostService {
         ClubPost post = clubPostRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("ClubPost", postId));
 
+        verifyUserCollegeMatchesClub(userId, post.getClubId());
+
         if (!post.isPoll()) {
             throw new BusinessException.BadRequestException("This post is not a poll.");
         }
@@ -142,6 +144,8 @@ public class ClubPostService {
         ClubPost post = clubPostRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("ClubPost", postId));
 
+        verifyUserCollegeMatchesClub(userId, post.getClubId());
+
         List<String> likes = post.getLikes();
         if (likes == null) {
             likes = new ArrayList<>();
@@ -160,6 +164,8 @@ public class ClubPostService {
     public ClubPost addComment(String userId, String postId, String text) {
         ClubPost post = clubPostRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("ClubPost", postId));
+
+        verifyUserCollegeMatchesClub(userId, post.getClubId());
 
         User user = userService.getUserByUserId(userId);
 
@@ -213,6 +219,19 @@ public class ClubPostService {
 
     public List<ClubPost> getClubPosts(String clubId) {
         return clubPostRepository.findByClubIdOrderByCreatedAtDesc(clubId);
+    }
+
+    private void verifyUserCollegeMatchesClub(String userId, String clubId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Club", clubId));
+        User user = userService.getUserByUserId(userId);
+        if (user.getRole() == UserRole.ADMIN) return;
+        if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
+            throw new BusinessException.BadRequestException("User has no college assigned.");
+        }
+        if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+            throw new BusinessException.BadRequestException("You cannot interact with posts from another college.");
+        }
     }
 
     public boolean canManagePosts(String userId, String clubId) {

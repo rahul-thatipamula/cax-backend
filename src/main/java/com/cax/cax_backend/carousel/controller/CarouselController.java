@@ -3,11 +3,13 @@ package com.cax.cax_backend.carousel.controller;
 import com.cax.cax_backend.carousel.model.Carousel;
 import com.cax.cax_backend.carousel.repository.CarouselRepository;
 import com.cax.cax_backend.common.dto.ApiResponse;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 import com.cax.cax_backend.common.annotation.AdminActivityLog;
 
 import java.time.Instant;
@@ -19,6 +21,7 @@ import java.util.List;
 public class CarouselController {
     private final CarouselRepository repo;
 
+    // Public endpoint — intentionally unauthenticated, shows banners on home screen
     @Cacheable(value = "carousels", key = "#collegeId != null ? #collegeId : 'default'")
     @GetMapping
     public ResponseEntity<ApiResponse<List<Carousel>>> getCarousels(@RequestParam(required = false) String collegeId) {
@@ -36,7 +39,8 @@ public class CarouselController {
     @CacheEvict(value = "carousels", allEntries = true)
     @PostMapping
     @AdminActivityLog(action = "Create Carousel Banner")
-    public ResponseEntity<ApiResponse<Carousel>> create(@RequestBody Carousel body) {
+    public ResponseEntity<ApiResponse<Carousel>> create(Authentication auth, @RequestBody Carousel body) {
+        checkAdmin(auth);
         return ResponseEntity.ok(ApiResponse.created("Carousel created", repo.save(body)));
     }
 
@@ -49,7 +53,11 @@ public class CarouselController {
     }
 
     @GetMapping("/admin/all")
-    public ResponseEntity<ApiResponse<List<Carousel>>> getAllCarousels(@RequestParam(required = false) String collegeId) {
+    @AdminActivityLog(action = "List All Carousel Banners")
+    public ResponseEntity<ApiResponse<List<Carousel>>> getAllCarousels(
+            Authentication auth,
+            @RequestParam(required = false) String collegeId) {
+        checkAdmin(auth);
         List<Carousel> items;
         if (collegeId != null && !collegeId.isBlank()) {
             items = new ArrayList<>(repo.findByCollegeIdIsNullOrderByDisplayOrderAsc());
@@ -64,7 +72,8 @@ public class CarouselController {
     @CacheEvict(value = "carousels", allEntries = true)
     @PutMapping("/{id}")
     @AdminActivityLog(action = "Update Carousel Banner", resourceIdParam = "id")
-    public ResponseEntity<ApiResponse<Carousel>> update(@PathVariable String id, @RequestBody Carousel body) {
+    public ResponseEntity<ApiResponse<Carousel>> update(Authentication auth, @PathVariable String id, @RequestBody Carousel body) {
+        checkAdmin(auth);
         Carousel carousel = repo.findById(id).orElseThrow();
         carousel.setTitle(body.getTitle());
         carousel.setDescription(body.getDescription());
@@ -85,7 +94,8 @@ public class CarouselController {
     @CacheEvict(value = "carousels", allEntries = true)
     @DeleteMapping("/{id}")
     @AdminActivityLog(action = "Delete Carousel Banner", resourceIdParam = "id")
-    public ResponseEntity<ApiResponse<String>> delete(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<String>> delete(Authentication auth, @PathVariable String id) {
+        checkAdmin(auth);
         repo.deleteById(id);
         return ResponseEntity.ok(ApiResponse.success("Carousel deleted"));
     }
@@ -93,10 +103,22 @@ public class CarouselController {
     @CacheEvict(value = "carousels", allEntries = true)
     @PutMapping("/{id}/toggle")
     @AdminActivityLog(action = "Toggle Carousel Banner Status", resourceIdParam = "id")
-    public ResponseEntity<ApiResponse<Carousel>> toggleActive(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Carousel>> toggleActive(Authentication auth, @PathVariable String id) {
+        checkAdmin(auth);
         Carousel carousel = repo.findById(id).orElseThrow();
         carousel.setActive(!carousel.isActive());
         carousel.setUpdatedAt(Instant.now());
         return ResponseEntity.ok(ApiResponse.success(repo.save(carousel)));
+    }
+
+    private void checkAdmin(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        Claims claims = (Claims) auth.getCredentials();
+        Boolean isAdmin = claims.get("isAdmin", Boolean.class);
+        if (!Boolean.TRUE.equals(isAdmin)) {
+            throw new com.cax.cax_backend.common.exception.AuthException.AdminOnlyException();
+        }
     }
 }

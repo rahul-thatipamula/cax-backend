@@ -8,8 +8,8 @@ import com.cax.cax_backend.club.repository.ClubMemberRepository;
 import com.cax.cax_backend.club.repository.ClubPostRepository;
 import com.cax.cax_backend.event.model.EventParticipant;
 import com.cax.cax_backend.event.repository.EventParticipantRepository;
-import com.cax.cax_backend.studentpost.model.StudentPost;
-import com.cax.cax_backend.studentpost.repository.StudentPostRepository;
+import com.cax.cax_backend.thought.model.Thought;
+import com.cax.cax_backend.thought.repository.ThoughtRepository;
 import com.cax.cax_backend.notification.repository.NotificationRepository;
 import com.cax.cax_backend.chat.model.ClubMessage;
 import com.cax.cax_backend.chat.repository.ClubMessageRepository;
@@ -32,7 +32,7 @@ public class UserProfileUpdatedListener {
     private final ClubMemberRepository clubMemberRepository;
     private final EventParticipantRepository eventParticipantRepository;
     private final ClubJoinRequestRepository clubJoinRequestRepository;
-    private final StudentPostRepository studentPostRepository;
+    private final ThoughtRepository thoughtRepository;
     private final ClubPostRepository clubPostRepository;
     private final NotificationRepository notificationRepository;
     private final ClubMessageRepository clubMessageRepository;
@@ -113,10 +113,10 @@ public class UserProfileUpdatedListener {
             log.error("Failed to sync ClubJoinRequest records: ", e);
         }
 
-        // 4. Sync StudentPost creator info
+        // 4. Sync Thought creator info
         try {
-            List<StudentPost> posts = studentPostRepository.findByUserId(userId);
-            for (StudentPost post : posts) {
+            List<Thought> posts = thoughtRepository.findByUserId(userId);
+            for (Thought post : posts) {
                 boolean changed = false;
                 if (updatedName != null && !updatedName.equals(post.getCreatorName())) {
                     post.setCreatorName(updatedName);
@@ -127,21 +127,21 @@ public class UserProfileUpdatedListener {
                     changed = true;
                 }
                 if (changed) {
-                    studentPostRepository.save(post);
+                    thoughtRepository.save(post);
                 }
             }
-            log.info("Synced {} StudentPost creator info records for user {}", posts.size(), userId);
+            log.info("Synced {} Thought creator info records for user {}", posts.size(), userId);
         } catch (Exception e) {
-            log.error("Failed to sync StudentPost creator info records: ", e);
+            log.error("Failed to sync Thought creator info records: ", e);
         }
 
-        // 5. Sync StudentPost comments info
+        // 5. Sync Thought comments info
         try {
-            List<StudentPost> postsWithComments = studentPostRepository.findByCommentsUserId(userId);
-            for (StudentPost post : postsWithComments) {
+            List<Thought> postsWithComments = thoughtRepository.findByCommentsUserId(userId);
+            for (Thought post : postsWithComments) {
                 boolean changed = false;
                 if (post.getComments() != null) {
-                    for (StudentPost.Comment comment : post.getComments()) {
+                    for (Thought.Comment comment : post.getComments()) {
                         if (userId.equals(comment.getUserId())) {
                             if (updatedName != null && !updatedName.equals(comment.getUserName())) {
                                 comment.setUserName(updatedName);
@@ -155,12 +155,12 @@ public class UserProfileUpdatedListener {
                     }
                 }
                 if (changed) {
-                    studentPostRepository.save(post);
+                    thoughtRepository.save(post);
                 }
             }
-            log.info("Synced {} StudentPost comment records for user {}", postsWithComments.size(), userId);
+            log.info("Synced {} Thought comment records for user {}", postsWithComments.size(), userId);
         } catch (Exception e) {
-            log.error("Failed to sync StudentPost comment records: ", e);
+            log.error("Failed to sync Thought comment records: ", e);
         }
 
         // 6. Sync ClubPost comments info

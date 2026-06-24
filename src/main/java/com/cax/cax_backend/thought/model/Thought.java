@@ -1,4 +1,4 @@
-package com.cax.cax_backend.studentpost.model;
+package com.cax.cax_backend.thought.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,13 +18,13 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "student_posts")
+@Document(collection = "thoughts")
 @CompoundIndexes({
     @CompoundIndex(name = "college_created_idx", def = "{'collegeId': 1, 'createdAt': -1}"),
     @CompoundIndex(name = "user_created_idx", def = "{'userId': 1, 'createdAt': -1}"),
     @CompoundIndex(name = "active_college_created_idx", def = "{'collegeId': 1, 'disabled': 1, 'createdAt': -1}")
 })
-public class StudentPost {
+public class Thought {
     @Id
     private String id;
 
@@ -47,7 +47,7 @@ public class StudentPost {
     private List<ThoughtImage> images = new ArrayList<>();
 
     @Builder.Default
-    private List<String> likes = new ArrayList<>(); // list of user IDs
+    private List<String> likes = new ArrayList<>();
 
     @Builder.Default
     private List<Comment> comments = new ArrayList<>();
@@ -56,6 +56,9 @@ public class StudentPost {
     private Instant createdAt = Instant.now();
 
     private Instant updatedAt;
+
+    @Builder.Default
+    private List<ThoughtHistory> history = new ArrayList<>();
 
     @Builder.Default
     private boolean disabled = false;
@@ -83,10 +86,21 @@ public class StudentPost {
     public static class ThoughtImage {
         private String url;
         @Builder.Default
-        private String alignment = "center"; // "left", "center", "right"
+        private String alignment = "center";
         @Builder.Default
-        private double widthRatio = 1.0; // 0.4 (small), 0.7 (medium), 1.0 (full)
+        private double widthRatio = 1.0;
         @Builder.Default
         private int insertAfterLine = 0;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ThoughtHistory {
+        private String heading;
+        private String content;
+        private List<ThoughtImage> images;
+        private Instant editedAt;
     }
 }

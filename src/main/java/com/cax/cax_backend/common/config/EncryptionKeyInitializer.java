@@ -9,7 +9,7 @@ import jakarta.annotation.PostConstruct;
 @Component
 public class EncryptionKeyInitializer {
 
-    @Value("${app.encryption.key:CaxGroupChatSecr}")
+    @Value("${app.encryption.key}")
     private String key;
 
     @PostConstruct

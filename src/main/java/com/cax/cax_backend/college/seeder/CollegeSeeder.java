@@ -5,14 +5,12 @@ import com.cax.cax_backend.college.repository.CollegeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class CollegeSeeder implements CommandLineRunner {
 

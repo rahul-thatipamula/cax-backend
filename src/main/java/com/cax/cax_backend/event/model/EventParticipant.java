@@ -34,6 +34,7 @@ public class EventParticipant {
     private String email;
     private String picture;
     private String college;
+    private String collegeId;
 
     // ID card details collected at registration (only when the event requires it)
     private String idCardNumber;

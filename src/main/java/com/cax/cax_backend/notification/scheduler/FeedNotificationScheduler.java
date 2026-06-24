@@ -2,7 +2,7 @@ package com.cax.cax_backend.notification.scheduler;
 
 import com.cax.cax_backend.common.enums.NotificationEnums.NotificationType;
 import com.cax.cax_backend.notification.service.NotificationService;
-import com.cax.cax_backend.studentpost.repository.StudentPostRepository;
+import com.cax.cax_backend.thought.repository.ThoughtRepository;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ import java.util.Map;
 public class FeedNotificationScheduler {
 
     private final UserRepository userRepository;
-    private final StudentPostRepository studentPostRepository;
+    private final ThoughtRepository thoughtRepository;
     private final NotificationService notificationService;
 
     // Runs once a day at 7:30 PM (19:30) server time
@@ -49,7 +49,7 @@ public class FeedNotificationScheduler {
             // Default lastSeenFeedAt to 24 hours ago if they have never opened the feed
             Instant lastSeen = user.getLastSeenFeedAt() != null ? user.getLastSeenFeedAt() : oneDayAgo;
 
-            long unseenCount = studentPostRepository.countActiveExcludingUserSince(user.getUserId(), lastSeen);
+            long unseenCount = thoughtRepository.countActiveExcludingUserSince(user.getUserId(), lastSeen);
 
             if (unseenCount > 0) {
                 try {

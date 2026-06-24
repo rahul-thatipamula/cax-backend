@@ -11,6 +11,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.cax.cax_backend.common.exception.BaseException;
 import com.cax.cax_backend.common.util.JwtUtil;
+import com.cax.cax_backend.settings.service.SystemSettingService;
 import com.cax.cax_backend.user.service.UserActivityService;
 
 import io.jsonwebtoken.Claims;
@@ -32,6 +33,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserActivityService userActivityService;
+    private final SystemSettingService systemSettingService;
 
     /** Extracts a JWT from the Bearer header, falling back to the access_token cookie.
      *  Bearer tokens that are blank or clearly not a JWT (no dots) are skipped so that
@@ -93,12 +95,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     int atIndex = email.indexOf('@');
                     String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
 
-                    boolean isBypassDomain = "caxone.in".equalsIgnoreCase(domain);
                     boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
                     boolean isExistingAdmin = "admin".equalsIgnoreCase(role)
                             || Boolean.TRUE.equals(isAdmin);
+                    boolean isPlayStoreTesting = systemSettingService.isPlayStoreTestingEnabled();
 
-                    if (!isBypassDomain && !isBypassEmail && !isExistingAdmin) {
+                    if (!isPlayStoreTesting && !isBypassEmail && !isExistingAdmin) {
                         boolean isAcademicDomain = domain.endsWith(".edu")
                                 || domain.endsWith(".ac.in")
                                 || domain.endsWith(".edu.in");

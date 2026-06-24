@@ -4,6 +4,7 @@ import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.event.model.EventParticipant;
 import com.cax.cax_backend.event.service.EventService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
@@ -78,7 +79,7 @@ public class EventController {
     public ResponseEntity<ApiResponse<Event>> createEvent(
             Authentication auth,
             @PathVariable String clubId,
-            @RequestBody Event eventData) {
+            @Valid @RequestBody Event eventData) {
         String userId = (String) auth.getPrincipal();
         Event created = eventService.createEvent(userId, clubId, eventData);
         return ResponseEntity.ok(ApiResponse.created("Event created successfully", created));
@@ -88,7 +89,7 @@ public class EventController {
     public ResponseEntity<ApiResponse<Event>> updateEvent(
             Authentication auth,
             @PathVariable String eventId,
-            @RequestBody Event eventData) {
+            @Valid @RequestBody Event eventData) {
         String userId = (String) auth.getPrincipal();
         Event updated = eventService.updateEvent(userId, eventId, eventData);
         return ResponseEntity.ok(ApiResponse.success("Event updated successfully", updated));
@@ -242,7 +243,11 @@ public class EventController {
             Authentication auth,
             @PathVariable String eventId,
             @RequestParam String ticketCode) {
-        Map<String, Object> details = eventService.getParticipantDetailsByCode(eventId, ticketCode);
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        Map<String, Object> details = eventService.getParticipantDetailsByCode(userId, eventId, ticketCode);
         return ResponseEntity.ok(ApiResponse.success(details));
     }
 

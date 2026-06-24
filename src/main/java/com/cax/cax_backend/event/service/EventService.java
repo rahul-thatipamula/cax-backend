@@ -68,6 +68,38 @@ public class EventService {
         }
     }
 
+    private void enforceExternallyManagedConstraints(Event eventData) {
+        if (!eventData.isExternallyManaged()) return;
+
+        String url = eventData.getExternalRegistrationUrl();
+        if (url == null || url.isBlank()) {
+            throw new BusinessException.BadRequestException(
+                    "externalRegistrationUrl is required for externally managed events.");
+        }
+        url = url.trim();
+        if (!url.startsWith("https://") && !url.startsWith("http://")) {
+            throw new BusinessException.BadRequestException(
+                    "externalRegistrationUrl must start with http:// or https://");
+        }
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            if (uri.getHost() == null || uri.getHost().isBlank()) {
+                throw new BusinessException.BadRequestException("externalRegistrationUrl is not a valid URL.");
+            }
+        } catch (java.net.URISyntaxException e) {
+            throw new BusinessException.BadRequestException("externalRegistrationUrl is not a valid URL.");
+        }
+        eventData.setExternalRegistrationUrl(url);
+
+        // Server-side sanitisation: externally managed events must never carry
+        // CAX payment or ID-card settings regardless of what the client sent.
+        eventData.setPaid(false);
+        eventData.setFee(0);
+        eventData.setUpiId(null);
+        eventData.setUpiQrCode(null);
+        eventData.setIdCardRequired(false);
+    }
+
     public Event createEvent(String userId, String clubId, Event eventData) {
         Club club = clubService.getClubById(clubId);
         verifyClubLeader(userId, club);
@@ -79,6 +111,8 @@ public class EventService {
         if (eventData.getCoordinators() != null && eventData.getCoordinators().size() > 4) {
             throw new BusinessException.BadRequestException("An event can have at most 4 coordinators.");
         }
+
+        enforceExternallyManagedConstraints(eventData);
 
         eventData.setClubId(clubId);
         eventData.setCollegeId(club.getCollegeId());
@@ -107,6 +141,36 @@ public class EventService {
         Club club = clubService.getClubById(event.getClubId());
         verifyClubLeader(userId, club);
 
+        // Reject changes to locked fields — these cannot be changed after creation
+        if (event.isGlobal() != eventData.isGlobal()) {
+            throw new BusinessException.BadRequestException(
+                    "Event visibility (global/college-level) cannot be changed after creation.");
+        }
+        if (event.isExternallyManaged() != eventData.isExternallyManaged()) {
+            throw new BusinessException.BadRequestException(
+                    "Externally Managed setting cannot be changed after creation.");
+        }
+        if (event.isPaid() != eventData.isPaid()) {
+            throw new BusinessException.BadRequestException(
+                    "Payment type (paid/free) cannot be changed after creation.");
+        }
+        if (event.isIdCardRequired() != eventData.isIdCardRequired()) {
+            throw new BusinessException.BadRequestException(
+                    "ID Card requirement cannot be changed after creation.");
+        }
+
+        // Determine effective isExternallyManaged for this update
+        boolean willBeExternal = eventData.isExternallyManaged();
+
+        // If switching TO externally managed, enforce URL + wipe payment fields.
+        // If staying external, re-validate URL. If switching OFF, clear the URL.
+        if (willBeExternal) {
+            enforceExternallyManagedConstraints(eventData);
+        } else {
+            // Switching away from externally managed: clear the URL
+            eventData.setExternalRegistrationUrl(null);
+        }
+
         // Update allowed fields
         if (eventData.getName() != null) event.setName(eventData.getName());
         if (eventData.getDescription() != null) event.setDescription(eventData.getDescription());
@@ -114,11 +178,38 @@ public class EventService {
         if (eventData.getRegistrationEndDate() != null) event.setRegistrationEndDate(eventData.getRegistrationEndDate());
         if (eventData.getEventStartDate() != null) event.setEventStartDate(eventData.getEventStartDate());
         if (eventData.getEventEndDate() != null) event.setEventEndDate(eventData.getEventEndDate());
-        event.setPaid(eventData.isPaid());
+        // Block switching from global → college-level if participants from other colleges exist
+        boolean switchingToCollegeLevel = event.isGlobal() && !eventData.isGlobal();
+        if (switchingToCollegeLevel) {
+            String clubCollegeId = club.getCollegeId();
+            long outsideCount = eventParticipantRepository
+                    .countByEventIdAndCollegeIdNotAndCollegeIdNotNull(eventId, clubCollegeId);
+            if (outsideCount > 0) {
+                throw new BusinessException.BadRequestException(
+                        outsideCount + " participant(s) from other colleges have already registered for this event. " +
+                        "You cannot change it to college-only. Remove those participants first or keep the event global.");
+            }
+        }
+
         event.setGlobal(eventData.isGlobal());
-        event.setFee(eventData.getFee());
-        if (eventData.getUpiId() != null) event.setUpiId(eventData.getUpiId());
-        if (eventData.getUpiQrCode() != null) event.setUpiQrCode(eventData.getUpiQrCode());
+        event.setExternallyManaged(willBeExternal);
+        event.setExternalRegistrationUrl(eventData.getExternalRegistrationUrl());
+
+        if (willBeExternal) {
+            // Server-side: externally managed events must not carry CAX payment data
+            event.setPaid(false);
+            event.setFee(0);
+            event.setUpiId(null);
+            event.setUpiQrCode(null);
+            event.setIdCardRequired(false);
+        } else {
+            event.setPaid(eventData.isPaid());
+            event.setFee(eventData.getFee());
+            event.setIdCardRequired(eventData.isIdCardRequired());
+            if (eventData.getUpiId() != null) event.setUpiId(eventData.getUpiId());
+            if (eventData.getUpiQrCode() != null) event.setUpiQrCode(eventData.getUpiQrCode());
+        }
+
         if (eventData.getEventImages() != null) {
             if (eventData.getEventImages().size() > 9) {
                 throw new BusinessException.BadRequestException("An event can have at most 9 event-related images.");
@@ -153,7 +244,7 @@ public class EventService {
 
     public void cancelEvent(String userId, String eventId) {
         Event event = getEventById(eventId);
-        // Access control removed - all users can cancel events
+        verifyEventManager(userId, event);
 
         event.setStatus("CANCELLED");
         event.setUpdatedAt(Instant.now());
@@ -166,6 +257,17 @@ public class EventService {
     // ========================================================================
 
     public List<Event> getClubEvents(String userId, String clubId) {
+        Club club = clubService.getClubById(clubId);
+        User user = userService.getUserByUserId(userId);
+        boolean isAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
+        if (!isAdmin) {
+            if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
+                throw new BusinessException.BadRequestException("User has no college assigned.");
+            }
+            if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+                throw new BusinessException.BadRequestException("You cannot access events from another college.");
+            }
+        }
         return eventRepository.findByClubId(clubId);
     }
 
@@ -182,8 +284,13 @@ public class EventService {
         User user = userService.getUserByUserId(userId);
         
         boolean isSystemAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
-        if (!isSystemAdmin && !event.isGlobal() && user.getCollegeDetails() != null && !club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
-            throw new BusinessException.BadRequestException("You cannot access an event from another college.");
+        if (!isSystemAdmin && !event.isGlobal()) {
+            if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
+                throw new BusinessException.BadRequestException("User has no college assigned.");
+            }
+            if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+                throw new BusinessException.BadRequestException("You cannot access an event from another college.");
+            }
         }
 
         // Check participant status
@@ -291,6 +398,11 @@ public class EventService {
     public EventParticipant registerForEvent(String userId, String eventId, Map<String, Object> idCardDetails) {
         Event event = getEventById(eventId);
 
+        if (event.isExternallyManaged()) {
+            throw new BusinessException.BadRequestException(
+                    "This event is managed externally. Please register via the provided external link.");
+        }
+
         if (!"ACTIVE".equals(event.getStatus())) {
             throw new BusinessException.BadRequestException("This event is no longer accepting registrations.");
         }
@@ -301,6 +413,19 @@ public class EventService {
 
         if (eventParticipantRepository.existsByEventIdAndUserId(eventId, userId)) {
             throw new BusinessException.BadRequestException("You are already registered for this event.");
+        }
+
+        User user = userService.getUserByUserId(userId);
+
+        // Non-global events are restricted to the same college
+        if (!event.isGlobal()) {
+            Club club = clubService.getClubById(event.getClubId());
+            if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
+                throw new BusinessException.BadRequestException("User has no college assigned.");
+            }
+            if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+                throw new BusinessException.BadRequestException("You can only register for events at your own college.");
+            }
         }
 
         // Collect & validate ID card details when the event requires them
@@ -316,11 +441,11 @@ public class EventService {
                         "ID card number, name on card, and department are required to register for this event.");
             }
         }
-
-        User user = userService.getUserByUserId(userId);
         String collegeName = null;
-        if (user.getCollegeDetails() != null && user.getCollegeDetails().getCollegeName() != null) {
+        String userCollegeId = null;
+        if (user.getCollegeDetails() != null) {
             collegeName = user.getCollegeDetails().getCollegeName();
+            userCollegeId = user.getCollegeDetails().getCollegeId();
         }
 
         // Free events → PENDING_APPROVAL (requires organizer approval)
@@ -334,7 +459,8 @@ public class EventService {
                 .email(user.getEmail())
                 .picture(user.getPicture())
                 .college(collegeName)
-                .idCardNumber(idCardNumber)
+                .collegeId(userCollegeId)
+                .idCardNumber(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(idCardNumber))
                 .idCardName(idCardName)
                 .idCardDepartment(idCardDepartment)
                 .status(initialStatus)
@@ -354,6 +480,10 @@ public class EventService {
 
     public EventParticipant submitPayment(String userId, String eventId, String utrNumber, String screenshotUrl, double amount) {
         Event event = getEventById(eventId);
+        if (event.isExternallyManaged()) {
+            throw new BusinessException.BadRequestException(
+                    "Payment cannot be submitted for externally managed events.");
+        }
         if (!event.isPaid()) {
             throw new BusinessException.BadRequestException("This is a free event, payment is not required.");
         }
@@ -365,7 +495,7 @@ public class EventService {
             throw new BusinessException.BadRequestException("Payment submission is not allowed in current status: " + participant.getStatus());
         }
 
-        participant.setUtrNumber(utrNumber);
+        participant.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(utrNumber));
         participant.setPaymentScreenshot(screenshotUrl);
         participant.setAmountPaid(amount);
         participant.setStatus("PAYMENT_SUBMITTED");
@@ -374,7 +504,12 @@ public class EventService {
     }
 
     public EventParticipant verifyPayment(String organizerId, String eventId, String participantId, boolean approved) {
-        // Access control removed - all users can verify payments
+        Event event = getEventById(eventId);
+        verifyEventManager(organizerId, event);
+        if (event.isExternallyManaged()) {
+            throw new BusinessException.BadRequestException(
+                    "Payment verification is not applicable for externally managed events.");
+        }
 
         EventParticipant participant = eventParticipantRepository.findById(participantId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("EventParticipant", participantId));
@@ -401,7 +536,6 @@ public class EventService {
 
         EventParticipant saved = eventParticipantRepository.save(participant);
         try {
-            Event event = getEventById(eventId);
             eventPublisher.publishEvent(new EventRegistrationReviewedEvent(this, saved, event));
         } catch (Exception e) {
             log.error("Failed to publish EventRegistrationReviewedEvent for participant: {}", participantId, e);
@@ -410,18 +544,14 @@ public class EventService {
     }
 
     public List<EventParticipant> getParticipants(String userId, String eventId) {
-        // Access control removed - all users can view participants
+        Event event = getEventById(eventId);
+        verifyEventManager(userId, event);
+
         List<EventParticipant> participants = eventParticipantRepository.findByEventId(eventId);
-        if (participants.isEmpty()) {
-            return participants;
-        }
-
-        List<String> userIds = participants.stream()
-                .map(EventParticipant::getUserId)
-                .filter(id -> id != null && !id.isBlank())
-                .collect(Collectors.toList());
-
-        // ID card details lookup removed from participants list
+        participants.forEach(p -> {
+            if (p.getIdCardNumber() != null) p.setIdCardNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getIdCardNumber()));
+            if (p.getUtrNumber() != null) p.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getUtrNumber()));
+        });
         return participants;
     }
 
@@ -553,6 +683,13 @@ public class EventService {
     }
 
     public EventParticipant checkInParticipant(String organizerId, String eventId, String ticketCode) {
+        Event event = getEventById(eventId);
+        verifyEventManager(organizerId, event);
+        if (event.isExternallyManaged()) {
+            throw new BusinessException.BadRequestException(
+                    "Check-in is not applicable for externally managed events.");
+        }
+
         EventParticipant participant = eventParticipantRepository.findByEventIdAndTicketCode(eventId, ticketCode)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Ticket code not found for this event: " + ticketCode));
 
@@ -569,9 +706,16 @@ public class EventService {
         return eventParticipantRepository.save(participant);
     }
 
-    public Map<String, Object> getParticipantDetailsByCode(String eventId, String ticketCode) {
+    public Map<String, Object> getParticipantDetailsByCode(String callerId, String eventId, String ticketCode) {
         EventParticipant participant = eventParticipantRepository.findByEventIdAndTicketCode(eventId, ticketCode)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Ticket code not found for this event: " + ticketCode));
+
+        // Only the ticket owner or an event manager can view ticket details
+        boolean isOwner = callerId.equals(participant.getUserId());
+        boolean isManager = hasEventManagePermission(callerId, getEventById(eventId));
+        if (!isOwner && !isManager) {
+            throw new BusinessException.BadRequestException("You do not have permission to view this ticket.");
+        }
 
         Map<String, Object> details = new HashMap<>();
         details.put("participant", participant);
@@ -579,6 +723,13 @@ public class EventService {
     }
 
     public EventParticipant toggleSuspicious(String organizerId, String eventId, String participantId, boolean suspicious, String note) {
+        Event event = getEventById(eventId);
+        verifyEventManager(organizerId, event);
+        if (event.isExternallyManaged()) {
+            throw new BusinessException.BadRequestException(
+                    "Participant management is not applicable for externally managed events.");
+        }
+
         EventParticipant participant = eventParticipantRepository.findById(participantId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("EventParticipant", participantId));
 

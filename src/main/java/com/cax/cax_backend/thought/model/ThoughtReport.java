@@ -1,4 +1,4 @@
-package com.cax.cax_backend.studentpost.model;
+package com.cax.cax_backend.thought.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

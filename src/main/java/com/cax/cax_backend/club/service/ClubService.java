@@ -547,10 +547,15 @@ public class ClubService {
             }
         }
 
-        // Also check if admin or super student
+        // Admins have global access; Super Students only for their own college's clubs
         try {
             User user = userService.getUserByUserId(userId);
-            return user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
+            if (user.getRole() == UserRole.ADMIN) return true;
+            if (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified()) {
+                return user.getCollegeDetails() != null
+                        && club.getCollegeId().equals(user.getCollegeDetails().getCollegeId());
+            }
+            return false;
         } catch (Exception e) {
             return false;
         }

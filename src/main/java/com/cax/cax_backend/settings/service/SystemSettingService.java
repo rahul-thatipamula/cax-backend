@@ -37,6 +37,19 @@ public class SystemSettingService {
     }
 
 
+    public boolean isPlayStoreTestingEnabled() {
+        return getSystemSetting().isPlayStoreTestingMode();
+    }
+
+    public SystemSetting setPlayStoreTesting(boolean enabled) {
+        SystemSetting setting = getSystemSetting();
+        setting.setPlayStoreTestingMode(enabled);
+        setting.setUpdatedAt(Instant.now());
+        SystemSetting saved = systemSettingRepository.save(setting);
+        log.info("Play Store testing mode set to: {}", enabled);
+        return saved;
+    }
+
     public SystemSetting updateVersionSettings(VersionSettingsRequest request) {
         SystemSetting setting = getSystemSetting();
         setting.setLatestVersion(request.getLatestVersion());

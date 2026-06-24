@@ -70,23 +70,15 @@ public class ClubController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<Club>>> getClubs(
             Authentication auth,
-            @RequestParam(required = false) String collegeId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        String finalCollegeId = collegeId;
-        if (finalCollegeId == null || finalCollegeId.isBlank()) {
-            String userId = (String) auth.getPrincipal();
-            User user = userService.getUserByUserId(userId);
-            if (user.getCollegeDetails() != null) {
-                finalCollegeId = user.getCollegeDetails().getCollegeId();
-            }
-        }
-        
-        if (finalCollegeId == null) {
+        String userId = (String) auth.getPrincipal();
+        User user = userService.getUserByUserId(userId);
+        if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
             return ResponseEntity.ok(ApiResponse.success(List.of()));
         }
-        
-        return ResponseEntity.ok(ApiResponse.success(clubService.getClubsByCollege(finalCollegeId, page, size)));
+        String collegeId = user.getCollegeDetails().getCollegeId();
+        return ResponseEntity.ok(ApiResponse.success(clubService.getClubsByCollege(collegeId, page, size)));
     }
 
     @GetMapping("/my")
@@ -108,8 +100,13 @@ public class ClubController {
         User user = userService.getUserByUserId(userId);
         
         boolean isSystemAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
-        if (!isSystemAdmin && user.getCollegeDetails() != null && !club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
-            throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You cannot access a club from another college.");
+        if (!isSystemAdmin) {
+            if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("User has no college assigned.");
+            }
+            if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You cannot access a club from another college.");
+            }
         }
         
         Optional<ClubMember> membership = clubService.getClubMember(clubId, userId);
@@ -241,7 +238,21 @@ public class ClubController {
     }
 
     @GetMapping("/{clubId}/members")
-    public ResponseEntity<ApiResponse<List<ClubMember>>> getMembers(@PathVariable String clubId) {
+    public ResponseEntity<ApiResponse<List<ClubMember>>> getMembers(
+            Authentication auth,
+            @PathVariable String clubId) {
+        String userId = (String) auth.getPrincipal();
+        Club club = clubService.getClubById(clubId);
+        User user = userService.getUserByUserId(userId);
+        boolean isSystemAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
+        if (!isSystemAdmin) {
+            if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("User has no college assigned.");
+            }
+            if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You cannot access members of a club from another college.");
+            }
+        }
         List<ClubMember> members = clubService.getClubMembers(clubId);
         return ResponseEntity.ok(ApiResponse.success(members));
     }

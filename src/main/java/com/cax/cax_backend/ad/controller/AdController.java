@@ -5,8 +5,12 @@ import com.cax.cax_backend.ad.service.AdService;
 import com.cax.cax_backend.common.annotation.AdminActivityLog;
 import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.common.util.JwtUtil;
+import com.cax.cax_backend.user.model.User;
+import com.cax.cax_backend.user.service.UserService;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,24 +25,20 @@ public class AdController {
 
     private final AdService adService;
     private final JwtUtil jwtUtil;
+    private final UserService userService;
 
     // ── Client endpoints ────────────────────────────────────────────────────
 
-    /**
-     * Returns the best active ad for the authenticated user.
-     * Pass collegeId as a query param so the mobile app can request
-     * college-specific ads.
-     *
-     * GET /api/ads/active?collegeId=xyz
-     */
     @GetMapping("/active")
     public ResponseEntity<ApiResponse<Ad>> getActiveAd(
-            @RequestHeader("Authorization") String authHeader,
-            @RequestParam(required = false) String collegeId) {
+            @RequestHeader("Authorization") String authHeader) {
 
         String userId = jwtUtil.extractUserId(JwtUtil.extractFromHeader(authHeader));
+        User user = userService.getUserByUserId(userId);
+        String collegeId = (user.getCollegeDetails() != null) ? user.getCollegeDetails().getCollegeId() : null;
+
         Optional<Ad> adOpt = adService.getActiveAdForUser(userId, collegeId);
-        
+
         if (adOpt.isPresent()) {
             Ad ad = adOpt.get();
             Ad responseAd = Ad.builder()
@@ -54,7 +54,7 @@ public class AdController {
                     .createdAt(ad.getCreatedAt())
                     .updatedAt(ad.getUpdatedAt())
                     .build();
-            
+
             if (ad.getRedirectUrl() != null && !ad.getRedirectUrl().isBlank()) {
                 String trackingUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
                         .path("/api/ads/")
@@ -71,10 +71,6 @@ public class AdController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    /**
-     * Redirects to the target URL of the ad and records a click.
-     * GET /api/ads/{id}/click
-     */
     @GetMapping("/{id}/click")
     public ResponseEntity<Void> recordClick(
             @PathVariable String id,
@@ -85,16 +81,10 @@ public class AdController {
                 .build();
     }
 
-    /**
-     * Record an impression when the ad is shown to the user.
-     *
-     * POST /api/ads/{id}/impression
-     */
     @PostMapping("/{id}/impression")
     public ResponseEntity<ApiResponse<String>> recordImpression(
             @RequestHeader("Authorization") String authHeader,
             @PathVariable String id) {
-
         String userId = jwtUtil.extractUserId(JwtUtil.extractFromHeader(authHeader));
         adService.recordImpression(userId, id);
         return ResponseEntity.ok(ApiResponse.success("Impression recorded"));
@@ -102,65 +92,62 @@ public class AdController {
 
     // ── Admin endpoints ─────────────────────────────────────────────────────
 
-    /**
-     * List all ads (admin).
-     * GET /api/ads/admin/all
-     */
     @GetMapping("/admin/all")
-    public ResponseEntity<ApiResponse<List<Ad>>> getAllAds() {
+    @AdminActivityLog(action = "List All Ads")
+    public ResponseEntity<ApiResponse<List<Ad>>> getAllAds(Authentication auth) {
+        checkAdmin(auth);
         return ResponseEntity.ok(ApiResponse.success(adService.getAllAds()));
     }
 
-    /**
-     * Create a new ad (admin).
-     * POST /api/ads/admin
-     */
     @PostMapping("/admin")
     @AdminActivityLog(action = "Create Ad")
-    public ResponseEntity<ApiResponse<Ad>> createAd(@RequestBody Ad ad) {
+    public ResponseEntity<ApiResponse<Ad>> createAd(Authentication auth, @RequestBody Ad ad) {
+        checkAdmin(auth);
         return ResponseEntity.ok(ApiResponse.created("Ad created", adService.createAd(ad)));
     }
 
-    /**
-     * Update an ad (admin).
-     * PUT /api/ads/admin/{id}
-     */
     @PutMapping("/admin/{id}")
     @AdminActivityLog(action = "Update Ad", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<Ad>> updateAd(
+            Authentication auth,
             @PathVariable String id,
             @RequestBody Ad body) {
+        checkAdmin(auth);
         return ResponseEntity.ok(ApiResponse.success(adService.updateAd(id, body)));
     }
 
-    /**
-     * Delete an ad (admin).
-     * DELETE /api/ads/admin/{id}
-     */
     @DeleteMapping("/admin/{id}")
     @AdminActivityLog(action = "Delete Ad", resourceIdParam = "id")
-    public ResponseEntity<ApiResponse<String>> deleteAd(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<String>> deleteAd(Authentication auth, @PathVariable String id) {
+        checkAdmin(auth);
         adService.deleteAd(id);
         return ResponseEntity.ok(ApiResponse.success("Ad deleted"));
     }
 
-    /**
-     * Toggle active status (admin).
-     * PUT /api/ads/admin/{id}/toggle
-     */
     @PutMapping("/admin/{id}/toggle")
     @AdminActivityLog(action = "Toggle Ad Status", resourceIdParam = "id")
-    public ResponseEntity<ApiResponse<Ad>> toggleAd(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Ad>> toggleAd(Authentication auth, @PathVariable String id) {
+        checkAdmin(auth);
         return ResponseEntity.ok(ApiResponse.success(adService.toggleActive(id)));
     }
 
-    /**
-     * Get user-level analytics for a specific ad.
-     * GET /api/ads/admin/{id}/analytics
-     */
     @GetMapping("/admin/{id}/analytics")
+    @AdminActivityLog(action = "View Ad Analytics", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<List<UserAdAnalyticsDto>>> getAdAnalytics(
+            Authentication auth,
             @PathVariable String id) {
+        checkAdmin(auth);
         return ResponseEntity.ok(ApiResponse.success(adService.getAdAnalytics(id)));
+    }
+
+    private void checkAdmin(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        Claims claims = (Claims) auth.getCredentials();
+        Boolean isAdmin = claims.get("isAdmin", Boolean.class);
+        if (!Boolean.TRUE.equals(isAdmin)) {
+            throw new com.cax.cax_backend.common.exception.AuthException.AdminOnlyException();
+        }
     }
 }

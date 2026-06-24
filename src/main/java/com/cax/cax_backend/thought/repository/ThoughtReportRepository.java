@@ -1,6 +1,6 @@
-package com.cax.cax_backend.studentpost.repository;
+package com.cax.cax_backend.thought.repository;
 
-import com.cax.cax_backend.studentpost.model.ThoughtReport;
+import com.cax.cax_backend.thought.model.ThoughtReport;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 

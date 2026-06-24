@@ -91,19 +91,25 @@ public class AuthService {
             boolean isSuperStudent = user != null && user.getRole() == UserRole.SUPER_STUDENT;
             boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
 
-            if (!isSuperStudent && !isBypassEmail) {
-                boolean isAcademicDomain = domain.endsWith(".edu")
-                        || domain.endsWith(".ac.in")
-                        || domain.endsWith(".edu.in");
-                if (!isAcademicDomain) {
+            boolean isAcademicDomain = domain.endsWith(".edu")
+                    || domain.endsWith(".ac.in")
+                    || domain.endsWith(".edu.in");
+
+            College matchedCollege;
+            if (!isSuperStudent && !isBypassEmail && !isAcademicDomain) {
+                if (systemSettingService.isPlayStoreTestingEnabled()) {
+                    // Play Store testing mode ON — personal emails go to CAXone College
+                    matchedCollege = getOrCreateCAXoneCollege();
+                    log.info("Play Store testing: personal email '{}' assigned to CAXone College", email);
+                } else {
                     throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
                 }
-            }
-
-            College matchedCollege = findMatchedCollege(domain);
-            if (!isSuperStudent && !isBypassEmail && matchedCollege == null) {
-                log.warn("No college match found for domain '{}'. User email: {}", domain, email);
-                throw new AuthException.ForbiddenException("College details not added yet. We haven't registered your college email domain on CAX yet.");
+            } else {
+                matchedCollege = findMatchedCollege(domain);
+                if (!isSuperStudent && !isBypassEmail && matchedCollege == null) {
+                    log.warn("No college match found for domain '{}'. User email: {}", domain, email);
+                    throw new AuthException.ForbiddenException("College details not added yet. We haven't registered your college email domain on CAX yet.");
+                }
             }
 
             boolean isNewUser = false;
@@ -145,6 +151,8 @@ public class AuthService {
                 if (collegeHealed) {
                     log.info("Auto-healed college '{}' for existing user: {}", matchedCollege.getCollegeName(), user.getUserId());
                 }
+
+                healPlainTextEncryption(user);
 
                 user.setOnline(true);
                 user.setLastLoginAt(Instant.now());
@@ -219,8 +227,9 @@ public class AuthService {
         String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
         boolean isSuperStudent = user.getRole() == UserRole.SUPER_STUDENT;
         boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
+        boolean isCAXone = systemSettingService.isPlayStoreTestingEnabled() && isCAXoneUser(user);
 
-        if (!isSuperStudent && !isBypassEmail) {
+        if (!isSuperStudent && !isBypassEmail && !isCAXone) {
             boolean isAcademicDomain = domain.endsWith(".edu")
                     || domain.endsWith(".ac.in")
                     || domain.endsWith(".edu.in");
@@ -230,7 +239,7 @@ public class AuthService {
         }
 
         user = getUserAndHealIfVerified(user);
-        if (!isSuperStudent && !isBypassEmail && !hasCollegeDetails(user)) {
+        if (!isSuperStudent && !isBypassEmail && !isCAXone && !hasCollegeDetails(user)) {
             throw new AuthException.ForbiddenException("College details not added yet. We haven't registered your college email domain on CAX yet.");
         }
         return user;
@@ -242,7 +251,7 @@ public class AuthService {
     public void updateFcmToken(String userId, String fcmToken) {
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(AuthException.UserNotFoundException::new);
-        user.setFcmToken(fcmToken);
+        user.setFcmToken(EncryptionUtils.encrypt(fcmToken));
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
         log.info("FCM token updated for user: {}", userId);
@@ -274,23 +283,7 @@ public class AuthService {
                 }
             }
         }
-        if (updates.containsKey("premiumExpiresAt")) {
-            Object expVal = updates.get("premiumExpiresAt");
-            if (expVal == null) {
-                user.setPremiumExpiresAt(null);
-            } else {
-                user.setPremiumExpiresAt(Instant.parse((String) expVal));
-            }
-        }
-        if (updates.containsKey("premiumPack")) {
-            user.setPremiumPack((String) updates.get("premiumPack"));
-        }
-        if (updates.containsKey("premiumCardTheme")) {
-            user.setPremiumCardTheme((String) updates.get("premiumCardTheme"));
-        }
-        if (updates.containsKey("premiumMusicLink")) {
-            user.setPremiumMusicLink((String) updates.get("premiumMusicLink"));
-        }
+        // Premium fields are server-controlled only — never accept from client
 
         user.setUpdatedAt(Instant.now());
         user = userRepository.save(user);
@@ -405,7 +398,8 @@ public class AuthService {
             String userDomain = atIdx != -1 ? userEmail.substring(atIdx + 1) : "";
             boolean isSuperStudent = user.getRole() == UserRole.SUPER_STUDENT;
             boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(userEmail);
-            if (!isSuperStudent && !isBypassEmail) {
+            boolean isCAXone = systemSettingService.isPlayStoreTestingEnabled() && isCAXoneUser(user);
+            if (!isSuperStudent && !isBypassEmail && !isCAXone) {
                 boolean isAcademicDomain = userDomain.endsWith(".edu")
                         || userDomain.endsWith(".ac.in")
                         || userDomain.endsWith(".edu.in");
@@ -565,6 +559,44 @@ public class AuthService {
         return result;
     }
 
+    private static final String CAXONE_COLLEGE_CODE = "CAXONE";
+
+    private College getOrCreateCAXoneCollege() {
+        return collegeRepository.findByCollegeCode(CAXONE_COLLEGE_CODE).orElseGet(() -> {
+            College caxone = College.builder()
+                    .collegeName("CAXone")
+                    .collegeCode(CAXONE_COLLEGE_CODE)
+                    .location("India")
+                    .university("CAX Platform")
+                    .type("Platform")
+                    .build();
+            College saved = collegeRepository.save(caxone);
+            log.info("Created CAXone College with id: {}", saved.getId());
+            return saved;
+        });
+    }
+
+    private boolean healPlainTextEncryption(User user) {
+        boolean changed = false;
+        if (user.getFcmToken() != null && !user.getFcmToken().startsWith("v2:")) {
+            user.setFcmToken(EncryptionUtils.encrypt(user.getFcmToken()));
+            changed = true;
+        }
+        if (user.getTwoFactorSecret() != null && !user.getTwoFactorSecret().startsWith("v2:")) {
+            user.setTwoFactorSecret(EncryptionUtils.encrypt(user.getTwoFactorSecret()));
+            changed = true;
+        }
+        if (changed) {
+            log.info("Re-encrypted plain-text fields for user: {}", user.getUserId());
+        }
+        return changed;
+    }
+
+    private boolean isCAXoneUser(User user) {
+        return user.getCollegeDetails() != null
+                && CAXONE_COLLEGE_CODE.equalsIgnoreCase(user.getCollegeDetails().getCollegeCode());
+    }
+
     private College findMatchedCollege(String domain) {
         List<College> activeColleges = collegeRepository.findByIsActiveTrue();
         for (College college : activeColleges) {
@@ -696,9 +728,11 @@ public class AuthService {
                 || domain.endsWith(".ac.in")
                 || domain.endsWith(".edu.in");
 
-        // If existing user, also validate their stored email domain.
-        // Blocks users who registered with a personal email before restrictions were in place.
-        if (existingDbUser != null && !isBypassEmail) {
+        // For existing CAXone users, don't block them on stored-domain check
+        boolean existingIsCAXone = existingDbUser != null && isCAXoneUser(existingDbUser);
+
+        // If existing user with personal email (not already on CAXone), also validate stored domain
+        if (existingDbUser != null && !isBypassEmail && !existingIsCAXone) {
             String storedEmail = existingDbUser.getEmail() != null
                     ? existingDbUser.getEmail().toLowerCase().trim()
                     : email;
@@ -714,7 +748,15 @@ public class AuthService {
 
         boolean hasPendingReport = collegeReportService.hasPendingReport(email);
 
-        College matched = findMatchedCollege(domain);
+        // Personal email → use CAXone College if Play Store testing is ON
+        College matched;
+        if (!isBypassEmail && !isAcademicDomain && systemSettingService.isPlayStoreTestingEnabled()) {
+            matched = getOrCreateCAXoneCollege();
+            isAcademicDomain = true;
+        } else {
+            matched = findMatchedCollege(domain);
+        }
+
         Map<String, Object> result = new HashMap<>();
         result.put("email", email);
         result.put("name", name);

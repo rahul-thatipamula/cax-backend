@@ -36,11 +36,25 @@ public class NotificationService {
         return repo.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
-    public void markAsRead(String notificationId) {
-        repo.findById(notificationId).ifPresent(n -> { n.setRead(true); n.setReadAt(Instant.now()); repo.save(n); });
+    public void markAsRead(String callerId, String notificationId) {
+        repo.findById(notificationId).ifPresent(n -> {
+            if (!n.getUserId().equals(callerId)) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You do not own this notification.");
+            }
+            n.setRead(true);
+            n.setReadAt(Instant.now());
+            repo.save(n);
+        });
     }
 
-    public void deleteNotification(String notificationId) { repo.deleteById(notificationId); }
+    public void deleteNotification(String callerId, String notificationId) {
+        repo.findById(notificationId).ifPresent(n -> {
+            if (!n.getUserId().equals(callerId)) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You do not own this notification.");
+            }
+            repo.delete(n);
+        });
+    }
 
     public long getUnreadCount(String userId) { return repo.countByUserIdAndReadFalse(userId); }
 
@@ -95,7 +109,7 @@ public class NotificationService {
                         pushData.put("imageUrl", imageUrl);
                     }
                     pushData.put("type", (data != null && data.containsKey("type")) ? data.get("type") : type.getValue());
-                    sendPushNotification(userId, user.getFcmToken(), title, body, pushData);
+                    sendPushNotification(userId, com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getFcmToken()), title, body, pushData);
                 } else {
                     log.debug("User {} does not have an FCM token, skipping push notification", userId);
                 }

@@ -22,6 +22,9 @@ public class SystemSetting {
 
 
     @Builder.Default
+    private boolean playStoreTestingMode = false;
+
+    @Builder.Default
     private String latestVersion = "1.0.0";
 
     @Builder.Default

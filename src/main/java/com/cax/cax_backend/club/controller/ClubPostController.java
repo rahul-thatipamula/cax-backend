@@ -112,23 +112,19 @@ public class ClubPostController {
     @GetMapping("/posts/feed")
     public ResponseEntity<ApiResponse<List<ClubPost>>> getFeed(
             Authentication auth,
-            @RequestParam(required = false) String collegeId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        String finalCollegeId = collegeId;
-        if (finalCollegeId == null || finalCollegeId.isBlank()) {
-            String userId = (String) auth.getPrincipal();
-            User user = userService.getUserByUserId(userId);
-            if (user.getCollegeDetails() != null) {
-                finalCollegeId = user.getCollegeDetails().getCollegeId();
-            }
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
         }
-        
-        if (finalCollegeId == null || finalCollegeId.isBlank()) {
+        String userId = (String) auth.getPrincipal();
+        User user = userService.getUserByUserId(userId);
+        if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null
+                || user.getCollegeDetails().getCollegeId().isBlank()) {
             return ResponseEntity.ok(ApiResponse.success(List.of()));
         }
-        
-        return ResponseEntity.ok(ApiResponse.success(clubPostService.getFeed(finalCollegeId, page, size)));
+        String collegeId = user.getCollegeDetails().getCollegeId();
+        return ResponseEntity.ok(ApiResponse.success(clubPostService.getFeed(collegeId, page, size)));
     }
 
     @GetMapping("/{clubId}/posts")

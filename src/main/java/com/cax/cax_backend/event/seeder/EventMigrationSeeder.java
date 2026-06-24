@@ -8,15 +8,11 @@ import com.cax.cax_backend.college.repository.CollegeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-@Component
-@Order(3)
 @RequiredArgsConstructor
 public class EventMigrationSeeder implements CommandLineRunner {
 
