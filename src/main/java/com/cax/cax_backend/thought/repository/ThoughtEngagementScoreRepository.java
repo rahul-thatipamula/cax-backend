@@ -17,4 +17,11 @@ public interface ThoughtEngagementScoreRepository extends MongoRepository<Though
     List<ThoughtEngagementScore> findTop10ByCollegeIdOrderByEngagementScoreDesc(String collegeId);
 
     void deleteByThoughtId(String thoughtId);
+
+    /**
+     * Finds all scores that have crossed the trending threshold but whose
+     * author has NOT yet been notified (trendingNotifiedAt is null).
+     * Used by the scheduler to send one-time trending notifications.
+     */
+    List<ThoughtEngagementScore> findByEngagementScoreGreaterThanEqualAndTrendingNotifiedAtIsNull(double threshold);
 }

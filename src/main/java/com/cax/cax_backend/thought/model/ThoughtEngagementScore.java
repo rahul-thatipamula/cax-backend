@@ -49,4 +49,11 @@ public class ThoughtEngagementScore {
 
     @Builder.Default
     private Instant lastComputedAt = Instant.now();
+
+    /**
+     * Set once when the author is notified that this thought is trending.
+     * Null means the author has never been notified. Used to enforce the
+     * "notify only once per thought" rule.
+     */
+    private Instant trendingNotifiedAt;
 }

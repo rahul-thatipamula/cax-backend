@@ -1,5 +1,7 @@
 package com.cax.cax_backend.thought.service;
 
+import com.cax.cax_backend.common.enums.NotificationEnums.NotificationType;
+import com.cax.cax_backend.notification.service.NotificationService;
 import com.cax.cax_backend.thought.model.Thought;
 import com.cax.cax_backend.thought.model.ThoughtEngagementScore;
 import com.cax.cax_backend.thought.repository.ThoughtEngagementScoreRepository;
@@ -12,7 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -27,8 +31,16 @@ public class ThoughtEngagementService {
     private static final double AUTHOR_BONUS_DIVISOR = 50.0;
     private static final double AUTHOR_BONUS_MAX      = 0.20;
 
+    /**
+     * Minimum engagement score for a thought to be considered "trending".
+     * Score formula: (likes + comments×3 + views×0.1) / (ageHours+2)^1.5
+     * A score of 1.0 roughly equals ~10 likes within 2 hours of posting.
+     */
+    private static final double TRENDING_THRESHOLD = 1.0;
+
     private final ThoughtEngagementScoreRepository scoreRepository;
     private final ThoughtRepository thoughtRepository;
+    private final NotificationService notificationService;
 
     /** Called after a like is toggled — updates count and recomputes score. */
     @Async("taskExecutor")
@@ -80,13 +92,15 @@ public class ThoughtEngagementService {
     }
 
     /**
-     * Scheduled every 15 minutes to recompute all scores for time-decay.
-     * Without this, a 1-hour-old post with 100 likes would stay above a
-     * brand-new post with 10 likes forever.
+     * Runs every 15 hours to recompute all engagement scores for time-decay,
+     * then checks if any newly-trending thoughts should notify their author.
+     *
+     * Two jobs in one pass keeps DB reads minimal — we already have every
+     * score loaded, so the trending check is free.
      */
-    @Scheduled(cron = "0 */15 * * * *")
+    @Scheduled(cron = "0 0 */15 * * *")
     public void recomputeAllScores() {
-        log.info("[ThoughtEngagement] Starting scheduled score recomputation...");
+        log.info("[ThoughtEngagement] Starting scheduled score recomputation (15h cycle)...");
         List<ThoughtEngagementScore> all = scoreRepository.findAll();
 
         for (ThoughtEngagementScore score : all) {
@@ -104,6 +118,57 @@ public class ThoughtEngagementService {
             }
         }
         log.info("[ThoughtEngagement] Recomputed {} scores.", all.size());
+
+        // After recompute, notify authors of newly-trending thoughts (once per thought)
+        notifyTrendingAuthors();
+    }
+
+    /**
+     * Finds all thoughts that have crossed the trending threshold but whose
+     * author has not yet been notified. Marks each as notified immediately
+     * before sending the push so a retry can't double-fire.
+     */
+    private void notifyTrendingAuthors() {
+        List<ThoughtEngagementScore> newlyTrending = scoreRepository
+                .findByEngagementScoreGreaterThanEqualAndTrendingNotifiedAtIsNull(TRENDING_THRESHOLD);
+
+        if (newlyTrending.isEmpty()) {
+            log.info("[ThoughtEngagement] No newly trending thoughts to notify.");
+            return;
+        }
+
+        log.info("[ThoughtEngagement] Found {} newly trending thought(s) to notify.", newlyTrending.size());
+
+        for (ThoughtEngagementScore score : newlyTrending) {
+            try {
+                // Mark notified first — prevents double-fire if the loop crashes halfway
+                score.setTrendingNotifiedAt(Instant.now());
+                scoreRepository.save(score);
+
+                thoughtRepository.findById(score.getThoughtId()).ifPresent(thought -> {
+                    Map<String, String> data = new HashMap<>();
+                    data.put("type", "THOUGHT_TRENDING");
+                    data.put("postId", thought.getId());
+                    data.put("deepLink", "app://feed/post/" + thought.getId());
+
+                    String title = "🔥 Your thought is trending!";
+                    String body = "\"" + thought.getHeading() + "\" is getting a lot of attention right now.";
+
+                    notificationService.createNotification(
+                            thought.getUserId(),
+                            title,
+                            body,
+                            NotificationType.FEED,
+                            data
+                    );
+                    log.info("[ThoughtEngagement] Trending notification sent to author {} for thought {}",
+                            thought.getUserId(), thought.getId());
+                });
+            } catch (Exception e) {
+                log.error("[ThoughtEngagement] Failed to send trending notification for thoughtId={}: {}",
+                        score.getThoughtId(), e.getMessage());
+            }
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
