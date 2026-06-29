@@ -81,6 +81,9 @@ public class Event {
     @Builder.Default
     private List<String> requiredFields = new java.util.ArrayList<>();
 
+    @Transient
+    private long joinedCount;
+
     @DecimalMin(value = "0", message = "Fee cannot be negative")
     @DecimalMax(value = "999999", message = "Fee cannot exceed ₹9,99,999")
     @Builder.Default

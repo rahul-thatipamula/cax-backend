@@ -18,4 +18,5 @@ public interface EventParticipantRepository extends MongoRepository<EventPartici
     Optional<EventParticipant> findByEventIdAndTicketCode(String eventId, String ticketCode);
     Optional<EventParticipant> findByTicketCode(String ticketCode);
     long countByEventIdAndCollegeIdNotAndCollegeIdNotNull(String eventId, String collegeId);
+    long countByEventId(String eventId);
 }

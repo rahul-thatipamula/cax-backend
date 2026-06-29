@@ -355,13 +355,31 @@ public class EventService {
         for (Event e : primaryEvents) deduped.put(e.getId(), e);
         for (Event e : collabEvents)  deduped.putIfAbsent(e.getId(), e);
 
-        return new java.util.ArrayList<>(deduped.values());
+        List<Event> result = new java.util.ArrayList<>(deduped.values());
+        populateJoinedCount(result);
+        return result;
+    }
+
+    private void populateJoinedCount(Event event) {
+        if (event != null) {
+            long count = eventParticipantRepository.countByEventId(event.getId());
+            event.setJoinedCount(count);
+        }
+    }
+
+    private void populateJoinedCount(List<Event> events) {
+        if (events != null) {
+            for (Event event : events) {
+                populateJoinedCount(event);
+            }
+        }
     }
 
     public Event getEventById(String eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Event", eventId));
         populateCollegeDetails(event);
+        populateJoinedCount(event);
         return event;
     }
 
@@ -453,7 +471,9 @@ public class EventService {
             return new java.util.ArrayList<>();
         }
         int toIndex = Math.min(fromIndex + size, filtered.size());
-        return filtered.subList(fromIndex, toIndex);
+        List<Event> result = filtered.subList(fromIndex, toIndex);
+        populateJoinedCount(result);
+        return result;
     }
 
     public List<Map<String, Object>> getJoinedEvents(String userId) {
@@ -472,6 +492,7 @@ public class EventService {
                 .collect(Collectors.toList());
 
         List<Event> events = eventRepository.findAllById(eventIds);
+        populateJoinedCount(events);
         Map<String, Event> eventMap = events.stream()
                 .collect(Collectors.toMap(Event::getId, e -> e));
 
