@@ -17,6 +17,7 @@ spring:
     mongodb:
       uri: ${MONGODB_URI}
       database: ${MONGODB_DATABASE}
+      auto-index-creation: true
   mail:
     host: ${SPRING_MAIL_HOST}
     port: ${SPRING_MAIL_PORT}
@@ -59,6 +60,11 @@ logging:
     root: INFO
     "[com.cax]": DEBUG
     "[org.springframework.security]": INFO
+
+# Razorpay
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID}
+  key-secret: ${RAZORPAY_KEY_SECRET}
 
 # Cloudflare R2 S3-Compatible Storage Configuration
 r2:

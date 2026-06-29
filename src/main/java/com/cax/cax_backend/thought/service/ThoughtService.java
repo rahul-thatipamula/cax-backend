@@ -19,9 +19,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import com.cax.cax_backend.boost.service.ThoughtBoostService;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,6 +37,7 @@ public class ThoughtService {
     private final ThoughtEngagementService engagementService;
     private final UserService userService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ThoughtBoostService thoughtBoostService;
 
     public Thought getById(String thoughtId) {
         return thoughtRepository.findById(thoughtId)
@@ -130,22 +134,40 @@ public class ThoughtService {
         return thoughtRepository.findActiveByUserId(userId, pageable);
     }
 
-    /** Returns the top-10 trending thoughts by engagement score, fetching full Thought docs. */
+    /**
+     * Returns up to 8 trending thoughts: top 5 by engagement score + up to 3 currently
+     * active boosted thoughts, shuffled together so boosted posts aren't predictably placed.
+     */
     public List<Thought> getTrending(String collegeId) {
+        // 1. Organic top-5
         List<ThoughtEngagementScore> scores = collegeId != null && !collegeId.isBlank()
                 ? engagementService.getTopTrendingByCollege(collegeId)
-                : engagementService.getTopTrending(10);
+                : engagementService.getTopTrending(5);
 
-        List<String> ids = scores.stream()
+        List<String> organicIds = scores.stream()
                 .map(ThoughtEngagementScore::getThoughtId)
                 .collect(Collectors.toList());
 
-        // Fetch all in one query, then reorder to match score ranking
-        List<Thought> fetched = thoughtRepository.findAllById(ids);
-        return ids.stream()
+        List<Thought> fetched = thoughtRepository.findAllById(organicIds);
+        List<Thought> organic = organicIds.stream()
                 .map(id -> fetched.stream().filter(t -> t.getId().equals(id)).findFirst().orElse(null))
                 .filter(t -> t != null && !t.isDisabled())
+                .limit(5)
                 .collect(Collectors.toList());
+
+        // 2. Active boosted (up to 3), excluding any already in organic list
+        Set<String> organicIdSet = organic.stream().map(Thought::getId).collect(Collectors.toSet());
+        List<Thought> boosted = thoughtBoostService.getActiveBoostedThoughts().stream()
+                .filter(t -> !organicIdSet.contains(t.getId()))
+                .limit(3)
+                .collect(Collectors.toList());
+
+        // 3. Merge and shuffle so boosted posts aren't always at a fixed position
+        List<Thought> combined = new ArrayList<>();
+        combined.addAll(organic);
+        combined.addAll(boosted);
+        Collections.shuffle(combined);
+        return combined;
     }
 
     public Thought toggleDisabled(String thoughtId) {

@@ -1,7 +1,7 @@
 package com.cax.cax_backend.home.dto;
 
 import com.cax.cax_backend.carousel.model.Carousel;
-import com.cax.cax_backend.club.model.Club;
+import com.cax.cax_backend.organization.model.Organization;
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.user.model.User;
 import lombok.AllArgsConstructor;
@@ -18,7 +18,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class DashboardResponse {
     private List<Carousel> banners;
-    private List<Club> myClubs;
+    private List<Organization> myOrganizations;
     private List<Event> discoverEvents;
     private List<Map<String, Object>> joinedEvents;
     private long unreadNotificationCount;

@@ -15,6 +15,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.data.annotation.Transient;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,7 +34,7 @@ public class Event {
     private String id;
 
     @Indexed
-    private String clubId;
+    private String organizationId;
 
     private String createdByUserId;
 
@@ -57,6 +58,15 @@ public class Event {
     @Builder.Default
     private boolean isPaid = false;
 
+    /**
+     * Controls which payment method participants use for a paid event.
+     * RAZORPAY   — online checkout via Razorpay (no UPI ID/QR required).
+     * MANUAL_UPI — organiser-verified UPI transfer (requires upiId).
+     * Ignored when isPaid is false.
+     */
+    @Builder.Default
+    private String paymentMode = "RAZORPAY";
+
     @JsonProperty("global")
     @Builder.Default
     private boolean global = false;
@@ -66,6 +76,10 @@ public class Event {
     @JsonProperty("idCardRequired")
     @Builder.Default
     private boolean idCardRequired = false;
+
+    @JsonProperty("requiredFields")
+    @Builder.Default
+    private List<String> requiredFields = new java.util.ArrayList<>();
 
     @DecimalMin(value = "0", message = "Fee cannot be negative")
     @DecimalMax(value = "999999", message = "Fee cannot exceed ₹9,99,999")
@@ -102,6 +116,20 @@ public class Event {
     @Size(max = 5, message = "An event can have at most 5 guests")
     private List<EventGuest> guests;
 
+    /**
+     * Organizations that are collaborating on this event.
+     * Only the primary org (organizationId) can invite collaborators.
+     * Collaborators with status ACCEPTED gain manage access (verify, check-in)
+     * and the event appears on their profile. No hard cap — any number of orgs
+     * can collaborate on large multi-org events.
+     */
+    @Builder.Default
+    private List<EventCollaborator> collaborators = new java.util.ArrayList<>();
+
+    /** Org IDs to add as collaborators at creation time. Not persisted — resolved in service. */
+    @Transient
+    private List<String> collaboratorIds;
+
     private String collegeId;
     private String collegeName;
 
@@ -124,6 +152,10 @@ public class Event {
     @Size(max = 500, message = "Registration link cannot exceed 500 characters")
     private String externalRegistrationUrl;
 
+    @Indexed(unique = true, partialFilter = "{'idempotencyKey': {'$type': 'string'}}")
+    private String idempotencyKey;
+
+
     public List<EventCoordinator> getCoordinators() {
         return coordinators == null ? new java.util.ArrayList<>() : coordinators;
     }
@@ -138,5 +170,9 @@ public class Event {
 
     public List<EventGuest> getGuests() {
         return guests == null ? new java.util.ArrayList<>() : guests;
+    }
+
+    public List<EventCollaborator> getCollaborators() {
+        return collaborators == null ? new java.util.ArrayList<>() : collaborators;
     }
 }

@@ -6,7 +6,6 @@ public class NotificationEnums {
 
     public enum NotificationType {
         FEED("feed"), SYSTEM("system"),
-        CLUB_CHAT("club_chat"),
         EVENT("event");
         private final String value;
         NotificationType(String v) { this.value = v; }

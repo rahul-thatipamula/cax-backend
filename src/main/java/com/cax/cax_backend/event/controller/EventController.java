@@ -27,6 +27,14 @@ public class EventController {
     private final EventService eventService;
     private final R2StorageService r2StorageService;
 
+    /** Same authentication guard used across this controller, in one place. */
+    private String requireUserId(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        return (String) auth.getPrincipal();
+    }
+
     @PostMapping(value = "/events/upload-image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<String>> uploadEventImage(
             Authentication auth,
@@ -75,13 +83,16 @@ public class EventController {
     // EVENT CRUD
     // ========================================================================
 
-    @PostMapping("/clubs/{clubId}/events")
+    @PostMapping("/organizations/{organizationId}/events")
     public ResponseEntity<ApiResponse<Event>> createEvent(
             Authentication auth,
-            @PathVariable String clubId,
+            @PathVariable String organizationId,
             @Valid @RequestBody Event eventData) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
-        Event created = eventService.createEvent(userId, clubId, eventData);
+        Event created = eventService.createEvent(userId, organizationId, eventData);
         return ResponseEntity.ok(ApiResponse.created("Event created successfully", created));
     }
 
@@ -90,6 +101,9 @@ public class EventController {
             Authentication auth,
             @PathVariable String eventId,
             @Valid @RequestBody Event eventData) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         Event updated = eventService.updateEvent(userId, eventId, eventData);
         return ResponseEntity.ok(ApiResponse.success("Event updated successfully", updated));
@@ -99,9 +113,21 @@ public class EventController {
     public ResponseEntity<ApiResponse<Void>> cancelEvent(
             Authentication auth,
             @PathVariable String eventId) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         eventService.cancelEvent(userId, eventId);
         return ResponseEntity.ok(ApiResponse.success("Event cancelled successfully"));
+    }
+
+    @DeleteMapping("/events/{eventId}")
+    public ResponseEntity<ApiResponse<Void>> deleteEvent(
+            Authentication auth,
+            @PathVariable String eventId) {
+        String userId = requireUserId(auth);
+        eventService.deleteEvent(userId, eventId);
+        return ResponseEntity.ok(ApiResponse.success("Event deleted successfully"));
     }
 
     @PostMapping("/events/{eventId}/announce")
@@ -116,15 +142,15 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.success("Announcement notification sent successfully"));
     }
 
-    @GetMapping("/clubs/{clubId}/events")
-    public ResponseEntity<ApiResponse<List<Event>>> getClubEvents(
+    @GetMapping("/organizations/{organizationId}/events")
+    public ResponseEntity<ApiResponse<List<Event>>> getOrganizationEvents(
             Authentication auth,
-            @PathVariable String clubId) {
+            @PathVariable String organizationId) {
         if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
             throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
         }
         String userId = (String) auth.getPrincipal();
-        List<Event> events = eventService.getClubEvents(userId, clubId);
+        List<Event> events = eventService.getOrganizationEvents(userId, organizationId);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
@@ -132,6 +158,9 @@ public class EventController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> getEventDetails(
             Authentication auth,
             @PathVariable String eventId) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         Map<String, Object> detail = eventService.getEventDetailForUser(userId, eventId);
         return ResponseEntity.ok(ApiResponse.success(detail));
@@ -170,6 +199,9 @@ public class EventController {
             Authentication auth,
             @PathVariable String eventId,
             @RequestBody(required = false) Map<String, Object> body) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         EventParticipant participant = eventService.registerForEvent(userId, eventId, body);
         return ResponseEntity.ok(ApiResponse.success("Registered successfully", participant));
@@ -180,6 +212,9 @@ public class EventController {
             Authentication auth,
             @PathVariable String eventId,
             @RequestBody Map<String, Object> body) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         String utrNumber = (String) body.get("utrNumber");
         String paymentScreenshot = (String) body.get("paymentScreenshot");
@@ -192,6 +227,9 @@ public class EventController {
     public ResponseEntity<ApiResponse<List<EventParticipant>>> getParticipants(
             Authentication auth,
             @PathVariable String eventId) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         List<EventParticipant> participants = eventService.getParticipants(userId, eventId);
         return ResponseEntity.ok(ApiResponse.success(participants));
@@ -222,6 +260,9 @@ public class EventController {
             @PathVariable String eventId,
             @PathVariable String participantId,
             @RequestParam boolean approved) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         EventParticipant participant = eventService.verifyPayment(userId, eventId, participantId, approved);
         String message = approved ? "Participant verified successfully" : "Participant rejected";
@@ -233,6 +274,9 @@ public class EventController {
             Authentication auth,
             @PathVariable String eventId,
             @RequestParam String ticketCode) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String organizerId = (String) auth.getPrincipal();
         EventParticipant participant = eventService.checkInParticipant(organizerId, eventId, ticketCode);
         return ResponseEntity.ok(ApiResponse.success("Checked in successfully", participant));
@@ -257,6 +301,9 @@ public class EventController {
             @PathVariable String eventId,
             @PathVariable String participantId,
             @RequestBody Map<String, Object> body) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         boolean suspicious = (boolean) body.getOrDefault("suspicious", false);
         String note = (String) body.get("suspiciousNote");
@@ -264,11 +311,54 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.success("Suspicious status updated successfully", participant));
     }
 
+
+    // ========================================================================
+    // COLLABORATION MANAGEMENT
+    // ========================================================================
+
+    /**
+     * Invite another organization to collaborate on this event.
+     * Body: { "organizationId": "org-xxx" }
+     */
+    @PostMapping("/events/{eventId}/collaborators")
+    public ResponseEntity<ApiResponse<com.cax.cax_backend.event.model.Event>> addCollaborator(
+            Authentication auth,
+            @PathVariable String eventId,
+            @RequestBody Map<String, String> body) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        String organizationId = body.get("organizationId");
+        if (organizationId == null || organizationId.isBlank()) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("organizationId is required");
+        }
+        com.cax.cax_backend.event.model.Event event = eventService.addCollaborator(userId, eventId, organizationId);
+        return ResponseEntity.ok(ApiResponse.success("Collaborator added successfully", event));
+    }
+
+    /** Remove a collaborating organization from the event. Only the primary org leader can do this. */
+    @DeleteMapping("/events/{eventId}/collaborators/{organizationId}")
+    public ResponseEntity<ApiResponse<com.cax.cax_backend.event.model.Event>> removeCollaborator(
+            Authentication auth,
+            @PathVariable String eventId,
+            @PathVariable String organizationId) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        com.cax.cax_backend.event.model.Event event = eventService.removeCollaborator(userId, eventId, organizationId);
+        return ResponseEntity.ok(ApiResponse.success("Collaborator removed successfully", event));
+    }
+
     @PostMapping("/events/{eventId}/memories")
     public ResponseEntity<ApiResponse<EventMemory>> uploadMemory(
             Authentication auth,
             @PathVariable String eventId,
             @RequestBody Map<String, String> body) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
         String userId = (String) auth.getPrincipal();
         String imageUrl = body.get("imageUrl");
         if (imageUrl == null || imageUrl.isBlank()) {
@@ -310,4 +400,6 @@ public class EventController {
         Page<EventMemory> memories = eventService.getEventMemories(userId, eventId, page, size, filter);
         return ResponseEntity.ok(ApiResponse.success(memories));
     }
+
 }
+

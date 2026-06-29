@@ -25,6 +25,9 @@ public class SystemSetting {
     private boolean playStoreTestingMode = false;
 
     @Builder.Default
+    private boolean razorpayEnabled = true;
+
+    @Builder.Default
     private String latestVersion = "1.0.0";
 
     @Builder.Default

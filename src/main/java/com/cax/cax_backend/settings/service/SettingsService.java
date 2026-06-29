@@ -32,8 +32,6 @@ public class SettingsService {
                     .pushNotificationsEnabled(true)
                     .darkMode(false)
                     .language("English")
-                    .soundEnabled(true)
-                    .vibrationEnabled(true)
                     .showOnlineStatus(true)
                     .allowMessages(true)
                     .createdAt(Instant.now())
@@ -65,8 +63,6 @@ public class SettingsService {
         result.put("language", settings.getLanguage());
         result.put("emailNotificationsEnabled", settings.isEmailNotificationsEnabled());
         result.put("pushNotificationsEnabled", settings.isPushNotificationsEnabled());
-        result.put("soundEnabled", settings.isSoundEnabled());
-        result.put("vibrationEnabled", settings.isVibrationEnabled());
         result.put("showOnlineStatus", settings.isShowOnlineStatus());
         result.put("allowMessages", settings.isAllowMessages());
         return result;
@@ -93,12 +89,6 @@ public class SettingsService {
         }
         if (settingsDTO.getLanguage() != null) {
             settings.setLanguage(settingsDTO.getLanguage());
-        }
-        if (settingsDTO.getSoundEnabled() != null) {
-            settings.setSoundEnabled(settingsDTO.getSoundEnabled());
-        }
-        if (settingsDTO.getVibrationEnabled() != null) {
-            settings.setVibrationEnabled(settingsDTO.getVibrationEnabled());
         }
         if (settingsDTO.getShowOnlineStatus() != null) {
             settings.setShowOnlineStatus(settingsDTO.getShowOnlineStatus());

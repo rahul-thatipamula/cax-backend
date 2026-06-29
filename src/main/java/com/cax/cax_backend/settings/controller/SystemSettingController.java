@@ -39,6 +39,17 @@ public class SystemSettingController {
         ));
     }
 
+    @PostMapping("/razorpay")
+    @AdminActivityLog(action = "Toggle Razorpay Enabled")
+    public ResponseEntity<ApiResponse<SystemSetting>> setRazorpayEnabled(
+            Authentication auth,
+            @RequestParam boolean enabled) {
+        checkAdmin(auth);
+        return ResponseEntity.ok(ApiResponse.success(
+                systemSettingService.setRazorpayEnabled(enabled)
+        ));
+    }
+
     @PostMapping("/version")
     @AdminActivityLog(action = "Update App Version Settings")
     public ResponseEntity<ApiResponse<SystemSetting>> updateVersionSettings(

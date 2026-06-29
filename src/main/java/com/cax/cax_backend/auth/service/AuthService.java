@@ -88,17 +88,13 @@ public class AuthService {
                     .or(() -> userRepository.findByEmail(finalEmail))
                     .orElse(null);
 
-            boolean isSuperStudent = user != null && user.getRole() == UserRole.SUPER_STUDENT;
-            boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
+            boolean isAdmin = user != null && user.getRole() == UserRole.ADMIN;
 
-            boolean isAcademicDomain = domain.endsWith(".edu")
-                    || domain.endsWith(".ac.in")
-                    || domain.endsWith(".edu.in");
+            boolean isPersonalDomain = isPersonalEmailDomain(domain);
 
             College matchedCollege;
-            if (!isSuperStudent && !isBypassEmail && !isAcademicDomain) {
+            if (!isAdmin && isPersonalDomain) {
                 if (systemSettingService.isPlayStoreTestingEnabled()) {
-                    // Play Store testing mode ON — personal emails go to CAXone College
                     matchedCollege = getOrCreateCAXoneCollege();
                     log.info("Play Store testing: personal email '{}' assigned to CAXone College", email);
                 } else {
@@ -106,7 +102,7 @@ public class AuthService {
                 }
             } else {
                 matchedCollege = findMatchedCollege(domain);
-                if (!isSuperStudent && !isBypassEmail && matchedCollege == null) {
+                if (!isAdmin && matchedCollege == null) {
                     log.warn("No college match found for domain '{}'. User email: {}", domain, email);
                     throw new AuthException.ForbiddenException("College details not added yet. We haven't registered your college email domain on CAX yet.");
                 }
@@ -225,21 +221,17 @@ public class AuthService {
         String email = user.getEmail() != null ? user.getEmail().toLowerCase().trim() : "";
         int atIndex = email.indexOf('@');
         String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
-        boolean isSuperStudent = user.getRole() == UserRole.SUPER_STUDENT;
-        boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
+        boolean isAdmin = user.getRole() == UserRole.ADMIN;
         boolean isCAXone = systemSettingService.isPlayStoreTestingEnabled() && isCAXoneUser(user);
 
-        if (!isSuperStudent && !isBypassEmail && !isCAXone) {
-            boolean isAcademicDomain = domain.endsWith(".edu")
-                    || domain.endsWith(".ac.in")
-                    || domain.endsWith(".edu.in");
-            if (!isAcademicDomain) {
+        if (!isAdmin && !isCAXone) {
+            if (isPersonalEmailDomain(domain)) {
                 throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
             }
         }
 
         user = getUserAndHealIfVerified(user);
-        if (!isSuperStudent && !isBypassEmail && !isCAXone && !hasCollegeDetails(user)) {
+        if (!isAdmin && !isCAXone && !hasCollegeDetails(user)) {
             throw new AuthException.ForbiddenException("College details not added yet. We haven't registered your college email domain on CAX yet.");
         }
         return user;
@@ -396,14 +388,10 @@ public class AuthService {
             String userEmail = user.getEmail() != null ? user.getEmail().toLowerCase().trim() : "";
             int atIdx = userEmail.indexOf('@');
             String userDomain = atIdx != -1 ? userEmail.substring(atIdx + 1) : "";
-            boolean isSuperStudent = user.getRole() == UserRole.SUPER_STUDENT;
-            boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(userEmail);
+            boolean isAdmin = user.getRole() == UserRole.ADMIN;
             boolean isCAXone = systemSettingService.isPlayStoreTestingEnabled() && isCAXoneUser(user);
-            if (!isSuperStudent && !isBypassEmail && !isCAXone) {
-                boolean isAcademicDomain = userDomain.endsWith(".edu")
-                        || userDomain.endsWith(".ac.in")
-                        || userDomain.endsWith(".edu.in");
-                if (!isAcademicDomain) {
+            if (!isAdmin && !isCAXone) {
+                if (isPersonalEmailDomain(userDomain)) {
                     throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
                 }
             }
@@ -561,6 +549,28 @@ public class AuthService {
 
     private static final String CAXONE_COLLEGE_CODE = "CAXONE";
 
+    private static final java.util.Set<String> PERSONAL_EMAIL_DOMAINS = java.util.Set.of(
+        "gmail.com", "googlemail.com",
+        "yahoo.com", "yahoo.co.in", "yahoo.in", "yahoo.co.uk", "ymail.com", "rocketmail.com",
+        "hotmail.com", "hotmail.co.in", "hotmail.co.uk",
+        "outlook.com", "outlook.in", "live.com", "msn.com",
+        "icloud.com", "me.com", "mac.com",
+        "aol.com",
+        "protonmail.com", "proton.me", "pm.me",
+        "rediffmail.com",
+        "mail.com",
+        "zoho.com",
+        "tutanota.com",
+        "fastmail.com",
+        "inbox.com",
+        "yandex.com", "yandex.ru"
+    );
+
+    private boolean isPersonalEmailDomain(String domain) {
+        if (domain == null || domain.isBlank()) return true;
+        return PERSONAL_EMAIL_DOMAINS.contains(domain.toLowerCase().trim());
+    }
+
     private College getOrCreateCAXoneCollege() {
         return collegeRepository.findByCollegeCode(CAXONE_COLLEGE_CODE).orElseGet(() -> {
             College caxone = College.builder()
@@ -574,6 +584,11 @@ public class AuthService {
             log.info("Created CAXone College with id: {}", saved.getId());
             return saved;
         });
+    }
+
+    private boolean isCAXoneUser(User user) {
+        return user.getCollegeDetails() != null
+                && CAXONE_COLLEGE_CODE.equalsIgnoreCase(user.getCollegeDetails().getCollegeCode());
     }
 
     private boolean healPlainTextEncryption(User user) {
@@ -590,11 +605,6 @@ public class AuthService {
             log.info("Re-encrypted plain-text fields for user: {}", user.getUserId());
         }
         return changed;
-    }
-
-    private boolean isCAXoneUser(User user) {
-        return user.getCollegeDetails() != null
-                && CAXONE_COLLEGE_CODE.equalsIgnoreCase(user.getCollegeDetails().getCollegeCode());
     }
 
     private College findMatchedCollege(String domain) {
@@ -723,36 +733,28 @@ public class AuthService {
                 .orElse(null);
         boolean existingUser = existingDbUser != null;
 
-        boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
-        boolean isAcademicDomain = domain.endsWith(".edu")
-                || domain.endsWith(".ac.in")
-                || domain.endsWith(".edu.in");
-
-        // For existing CAXone users, don't block them on stored-domain check
+        boolean isExistingAdmin = existingDbUser != null && existingDbUser.getRole() == UserRole.ADMIN;
         boolean existingIsCAXone = existingDbUser != null && isCAXoneUser(existingDbUser);
+        boolean isPersonalDomain = isPersonalEmailDomain(domain);
 
-        // If existing user with personal email (not already on CAXone), also validate stored domain
-        if (existingDbUser != null && !isBypassEmail && !existingIsCAXone) {
+        // If existing non-privileged user, also validate their stored domain
+        if (existingDbUser != null && !isExistingAdmin && !existingIsCAXone) {
             String storedEmail = existingDbUser.getEmail() != null
                     ? existingDbUser.getEmail().toLowerCase().trim()
                     : email;
             int storedAt = storedEmail.indexOf('@');
             String storedDomain = storedAt != -1 ? storedEmail.substring(storedAt + 1) : "";
-            boolean storedIsAcademic = storedDomain.endsWith(".edu")
-                    || storedDomain.endsWith(".ac.in")
-                    || storedDomain.endsWith(".edu.in");
-            if (!storedIsAcademic) {
-                isAcademicDomain = false;
+            if (isPersonalEmailDomain(storedDomain)) {
+                isPersonalDomain = true;
             }
         }
 
         boolean hasPendingReport = collegeReportService.hasPendingReport(email);
 
-        // Personal email → use CAXone College if Play Store testing is ON
         College matched;
-        if (!isBypassEmail && !isAcademicDomain && systemSettingService.isPlayStoreTestingEnabled()) {
+        if (isPersonalDomain && !isExistingAdmin && systemSettingService.isPlayStoreTestingEnabled()) {
             matched = getOrCreateCAXoneCollege();
-            isAcademicDomain = true;
+            isPersonalDomain = false;
         } else {
             matched = findMatchedCollege(domain);
         }
@@ -763,7 +765,7 @@ public class AuthService {
         result.put("picture", picture);
         result.put("domain", domain);
         result.put("existingUser", existingUser);
-        result.put("isAcademicDomain", isAcademicDomain || isBypassEmail);
+        result.put("isAcademicDomain", !isPersonalDomain || isExistingAdmin || existingIsCAXone);
         result.put("hasPendingReport", hasPendingReport);
         result.put("collegeFound", matched != null);
         if (matched != null) {
@@ -796,6 +798,24 @@ public class AuthService {
 
         collegeReportService.createReport(email, domain, name, picture, collegeName, collegeId, reason);
         log.info("Wrong-college report saved for email={}", email);
+    }
+
+    /**
+     * Submit a student ID card URL for admin verification review.
+     */
+    public User submitVerification(String token, String studentIdUrl) {
+        String userId = jwtUtil.extractUserId(token);
+        User user = userRepository.findByUserId(userId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("User"));
+        if (user.isIdVerified()) {
+            throw new BusinessException.BadRequestException("Account is already verified");
+        }
+        if (studentIdUrl == null || studentIdUrl.isBlank()) {
+            throw new BusinessException.BadRequestException("Student ID image URL is required");
+        }
+        user.setStudentIdUrl(studentIdUrl.trim());
+        user.setVerificationSubmittedAt(Instant.now());
+        return userRepository.save(user);
     }
 
     private GoogleIdToken.Payload verifyGoogleIdToken(String tokenStr) {

@@ -179,3 +179,197 @@ Bug fixes and performance improvements across events, profiles, and clubs.
 [2026-06-24 18:00:20] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
 [2026-06-24 18:00:20] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
 [2026-06-24 18:00:21] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-24 18:46:07] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-24 18:46:11] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-24 18:46:14] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-24 18:46:16] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-24 18:46:17] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-24 18:48:36] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=18.0.0, minRequiredVersion=18.0.0, latestBuildNumber=64, minRequiredBuildNumber=64, updateMessage=Bug fixes and improvements across events, profiles, and clubs.
+
+- Tapping a registration approved notification now opens the event directly
+- Event organizers can now export the participant list as a CSV file
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-25 09:21:39] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=18.1.0, minRequiredVersion=18.1.0, latestBuildNumber=64, minRequiredBuildNumber=64, updateMessage=Bug fixes and improvements across events, profiles, and clubs.
+
+- Tapping a registration approved notification now opens the event directly
+- Event organizers can now export the participant list as a CSV file
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-25 09:22:03] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=18.1.0, minRequiredVersion=18.1.0, latestBuildNumber=65, minRequiredBuildNumber=65, updateMessage=Bug fixes and improvements across events, profiles, and clubs.
+
+- Tapping a registration approved notification now opens the event directly
+- Event organizers can now export the participant list as a CSV file
+- Club profile screen redesigned for a cleaner, faster experience
+- Notification settings screen added — control what alerts you receive
+- Home screen now shows more campus services at a glance
+- Faster app startup with a smoother splash screen, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-25 09:22:35] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=18.1.0, minRequiredVersion=18.1.0, latestBuildNumber=65, minRequiredBuildNumber=65, updateMessage=What's new in this update:
+  
+- New Polisedh UI and new Icons.
+• Trending Thoughts — Discover the most popular thoughts from your campus community right on the home screen.
+
+• Improved Feed Experience — The Thoughts feed has been redesigned for a smoother, faster browsing experience with better engagement tracking.
+
+• Performance & Stability — Multiple improvements across clubs, events, profiles, and security for a more reliable experience., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-25 09:22:45] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:22:45] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:22:45] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:22:46] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:23:05] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:23:06] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:23:06] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:23:06] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:23:08] ADMIN: 113980311909370790584 | ACTION: Toggle Carousel Banner Status | RESOURCE: 6a268cbcc7af6b7a8a2f9836 | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:24:29] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:24:29] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:24:31] ADMIN: 113980311909370790584 | ACTION: Toggle Ad Status | RESOURCE: 6a3976b71c0281492fa2f66f | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:24:39] ADMIN: 113980311909370790584 | ACTION: View Ad Analytics | RESOURCE: 6a26882f1167ce42d32fd686 | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:24:46] ADMIN: 113980311909370790584 | ACTION: View Ad Analytics | RESOURCE: 6a26d3d332cb1b50e8119f4c | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:28:09] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:28:10] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:28:10] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:28:10] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:29:29] ADMIN: 113980311909370790584 | ACTION: Create Carousel Banner | RESOURCE: N/A | DETAILS: Carousel(id=null, title=Manage Events, description=Manage college events with cax, imageUrl=https://pub-6d28afd560b0498d9fea3f401d07e798.r2.dev/carousel/113980311909370790584/bfe8b8ed-67dd-4a64-bf52-de0640fb0249.png, actionUrl=null, actionLink=null, type=ANNOUNCEMENT, designType=modern_full, displayOrder=0, isActive=true, collegeId=null, targetAudience=null, createdBy=null, views=0, clicks=0, createdAt=2026-06-25T03:59:29.293437Z, updatedAt=null, expiresAt=null) | STATUS: SUCCESS
+[2026-06-25 09:29:29] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:30:48] ADMIN: 113980311909370790584 | ACTION: Toggle Carousel Banner Status | RESOURCE: 6a267f593242e87c18627029 | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:31:45] ADMIN: 113980311909370790584 | ACTION: Toggle Carousel Banner Status | RESOURCE: 6a2d3457d8bda978ff75b14c | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:33:21] ADMIN: 113980311909370790584 | ACTION: Create Carousel Banner | RESOURCE: N/A | DETAILS: Carousel(id=null, title=CAX, description=null, imageUrl=https://pub-6d28afd560b0498d9fea3f401d07e798.r2.dev/carousel/113980311909370790584/6527595e-6332-4c00-a0f8-f99ee51bc112.png, actionUrl=null, actionLink=null, type=BANNER, designType=image_only, displayOrder=0, isActive=true, collegeId=null, targetAudience=null, createdBy=null, views=0, clicks=0, createdAt=2026-06-25T04:03:21.327544Z, updatedAt=null, expiresAt=null) | STATUS: SUCCESS
+[2026-06-25 09:33:21] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 09:36:49] ADMIN: 113980311909370790584 | ACTION: Update Carousel Banner | RESOURCE: 6a3ca7a1cc8073096e6eeaf6 | DETAILS: Carousel(id=null, title=Manage Events, description=Manage college events with cax, imageUrl=https://pub-6d28afd560b0498d9fea3f401d07e798.r2.dev/carousel/113980311909370790584/bfe8b8ed-67dd-4a64-bf52-de0640fb0249.png, actionUrl=null, actionLink=app://club, type=ANNOUNCEMENT, designType=modern_full, displayOrder=0, isActive=true, collegeId=null, targetAudience=null, createdBy=null, views=0, clicks=0, createdAt=2026-06-25T04:06:49.426746Z, updatedAt=null, expiresAt=null) | STATUS: SUCCESS
+[2026-06-25 09:38:38] ADMIN: 113980311909370790584 | ACTION: Update Carousel Banner | RESOURCE: 6a3ca7a1cc8073096e6eeaf6 | DETAILS: Carousel(id=null, title=Manage Events, description=Manage college events with cax, imageUrl=https://pub-6d28afd560b0498d9fea3f401d07e798.r2.dev/carousel/113980311909370790584/bfe8b8ed-67dd-4a64-bf52-de0640fb0249.png, actionUrl=null, actionLink=app://club, type=ANNOUNCEMENT, designType=flipkart, displayOrder=0, isActive=true, collegeId=null, targetAudience=null, createdBy=null, views=0, clicks=0, createdAt=2026-06-25T04:08:38.222520Z, updatedAt=null, expiresAt=null) | STATUS: SUCCESS
+[2026-06-25 09:40:33] ADMIN: 113980311909370790584 | ACTION: Update Carousel Banner | RESOURCE: 6a3ca7a1cc8073096e6eeaf6 | DETAILS: Carousel(id=null, title=Manage Events, description=Manage college events with cax, imageUrl=https://pub-6d28afd560b0498d9fea3f401d07e798.r2.dev/carousel/113980311909370790584/bfe8b8ed-67dd-4a64-bf52-de0640fb0249.png, actionUrl=null, actionLink=app://club, type=ANNOUNCEMENT, designType=image_only, displayOrder=0, isActive=true, collegeId=null, targetAudience=null, createdBy=null, views=0, clicks=0, createdAt=2026-06-25T04:10:33.667302Z, updatedAt=null, expiresAt=null) | STATUS: SUCCESS
+[2026-06-25 09:44:08] ADMIN: 113980311909370790584 | ACTION: Update Carousel Banner | RESOURCE: 6a3ca889cc8073096e6eeaf7 | DETAILS: Carousel(id=null, title=CAX, description=null, imageUrl=https://pub-6d28afd560b0498d9fea3f401d07e798.r2.dev/carousel/113980311909370790584/a230216b-627b-4e61-b247-f65a44139d01.png, actionUrl=null, actionLink=null, type=BANNER, designType=image_only, displayOrder=0, isActive=true, collegeId=null, targetAudience=null, createdBy=null, views=0, clicks=0, createdAt=2026-06-25T04:14:08.419537Z, updatedAt=null, expiresAt=null) | STATUS: SUCCESS
+[2026-06-25 11:38:14] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 11:38:14] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 11:38:14] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 11:38:14] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 11:38:34] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 11:38:34] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 15:59:50] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 15:59:50] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 15:59:50] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 15:59:50] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 15:59:53] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:10:38] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:10:38] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:18:50] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:18:50] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:30:55] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:30:55] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:36:59] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:36:59] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:36:59] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-25 17:36:59] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 11:25:59] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 11:26:00] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 11:26:00] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 11:26:00] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:02:14] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:02:14] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:04:20] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:04:20] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:40:25] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=19.0.0, minRequiredVersion=19.0.0, latestBuildNumber=66, minRequiredBuildNumber=66, updateMessage=What's new in this update:
+  
+- New Polisedh UI and new Icons.
+• Trending Thoughts — Discover the most popular thoughts from your campus community right on the home screen.
+
+• Improved Feed Experience — The Thoughts feed has been redesigned for a smoother, faster browsing experience with better engagement tracking.
+
+• Performance & Stability — Multiple improvements across clubs, events, profiles, and security for a more reliable experience., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-26 12:41:05] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:41:05] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:42:33] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:42:34] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:42:34] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 12:42:34] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:10:13] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:10:13] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:10:14] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:10:14] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:12:09] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:12:09] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:12:09] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:12:10] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:12:23] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:12:23] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:12:23] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:12:23] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:40:15] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 13:40:15] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 14:27:14] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=19.0.0, minRequiredVersion=18.0.0, latestBuildNumber=66, minRequiredBuildNumber=66, updateMessage=What's new in this update:
+  
+- New Polisedh UI and new Icons.
+• Trending Thoughts — Discover the most popular thoughts from your campus community right on the home screen.
+
+• Improved Feed Experience — The Thoughts feed has been redesigned for a smoother, faster browsing experience with better engagement tracking.
+
+• Performance & Stability — Multiple improvements across clubs, events, profiles, and security for a more reliable experience., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-26 14:27:48] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=18.1.0, minRequiredVersion=18.0.0, latestBuildNumber=66, minRequiredBuildNumber=66, updateMessage=What's new in this update:
+  
+- New Polisedh UI and new Icons.
+• Trending Thoughts — Discover the most popular thoughts from your campus community right on the home screen.
+
+• Improved Feed Experience — The Thoughts feed has been redesigned for a smoother, faster browsing experience with better engagement tracking.
+
+• Performance & Stability — Multiple improvements across clubs, events, profiles, and security for a more reliable experience., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-26 15:51:29] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=19.0.0, minRequiredVersion=19.0.0, latestBuildNumber=66, minRequiredBuildNumber=66, updateMessage=What's new in this update:
+  
+- New Polisedh UI and new Icons.
+• Trending Thoughts — Discover the most popular thoughts from your campus community right on the home screen.
+
+• Improved Feed Experience — The Thoughts feed has been redesigned for a smoother, faster browsing experience with better engagement tracking.
+
+• Performance & Stability — Multiple improvements across clubs, events, profiles, and security for a more reliable experience., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-26 15:51:30] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 16:01:24] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 16:01:24] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 16:01:24] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 16:01:24] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 16:05:19] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=19.0.0, minRequiredVersion=19.0.0, latestBuildNumber=66, minRequiredBuildNumber=66, updateMessage=What's new in this update:
+
+• Added new Organization categories: Clubs, Communities, and Societies.
+• Improved and polished the overall UI for a better user experience.
+• Enhanced Event Collaboration management and workflows.
+• Various performance improvements and bug fixes.
+, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-06-26 19:43:58] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:43:58] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:43:58] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:43:58] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:43:59] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:43:59] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:52:53] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:52:53] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:52:53] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 19:52:53] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:34:48] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:34:52] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:34:52] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:34:54] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:34:54] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:34:54] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:34:54] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:35:00] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:35:00] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:35:00] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-26 20:35:01] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:07:50] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:07:50] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:07:50] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:07:50] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:10:34] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:10:35] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:10:35] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:10:35] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:11:28] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:11:28] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:11:28] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-27 13:11:28] ADMIN: 113980311909370790584 | ACTION: List All Carousel Banners | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-28 22:22:26] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-28 22:22:31] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-06-28 22:29:40] ADMIN: 113980311909370790584 | ACTION: Toggle Razorpay Enabled | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS

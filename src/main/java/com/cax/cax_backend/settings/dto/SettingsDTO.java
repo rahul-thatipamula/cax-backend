@@ -24,10 +24,6 @@ public class SettingsDTO {
     private String language;
 
     // Additional preferences
-    private Boolean soundEnabled;
-
-    private Boolean vibrationEnabled;
-
     private Boolean showOnlineStatus;
 
     private Boolean allowMessages;

@@ -173,6 +173,16 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/submit-verification")
+    public ResponseEntity<ApiResponse<User>> submitVerification(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestBody Map<String, String> body) {
+        String token = JwtUtil.extractFromHeader(authHeader);
+        String studentIdUrl = body.get("studentIdUrl");
+        User user = authService.submitVerification(token, studentIdUrl);
+        return ResponseEntity.ok(ApiResponse.success("Verification submitted successfully", user));
+    }
+
     @PostMapping("/report-wrong-college")
     public ResponseEntity<Map<String, Object>> reportWrongCollege(@RequestBody Map<String, String> body) {
         String token = body.get("token");

@@ -19,7 +19,7 @@ public class UserSettings {
     @Id
     private String id;
 
-    @Indexed(unique = true)
+    @Indexed
     private String userId;
 
     // Notification settings
@@ -34,19 +34,13 @@ public class UserSettings {
 
     // Theme settings
     @Builder.Default
-    private boolean darkMode = false;
+    private boolean darkMode = true;
 
     // Language settings
     @Builder.Default
     private String language = "English";
 
     // Additional preferences
-    @Builder.Default
-    private boolean soundEnabled = true;
-
-    @Builder.Default
-    private boolean vibrationEnabled = true;
-
     @Builder.Default
     private boolean showOnlineStatus = true;
 

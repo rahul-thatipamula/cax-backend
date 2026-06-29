@@ -1,9 +1,9 @@
 package com.cax.cax_backend.event.listener;
 
-import com.cax.cax_backend.club.model.Club;
-import com.cax.cax_backend.club.model.ClubMember;
-import com.cax.cax_backend.club.repository.ClubMemberRepository;
-import com.cax.cax_backend.club.service.ClubService;
+import com.cax.cax_backend.organization.model.Organization;
+import com.cax.cax_backend.organization.model.OrganizationMember;
+import com.cax.cax_backend.organization.repository.OrganizationMemberRepository;
+import com.cax.cax_backend.organization.service.OrganizationService;
 import com.cax.cax_backend.event.event.EventCreatedEvent;
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.notification.service.NotificationService;
@@ -25,10 +25,10 @@ import static org.mockito.Mockito.*;
 class EventCreatedListenerTest {
 
     @Mock
-    private ClubMemberRepository clubMemberRepository;
+    private OrganizationMemberRepository organizationMemberRepository;
 
     @Mock
-    private ClubService clubService;
+    private OrganizationService organizationService;
 
     @Mock
     private NotificationService notificationService;
@@ -37,51 +37,44 @@ class EventCreatedListenerTest {
     private EventCreatedListener listener;
 
     @Test
-    void handleEventCreatedEvent_SendsNotificationsToClubMembers() {
+    void handleEventCreatedEvent_SendsNotificationsToClubMembers_TemporarilyDisabled() {
         // Arrange
-        String clubId = "club123";
+        String organizationId = "org123";
         String creatorId = "creator456";
         String memberId = "member789";
 
         Event event = Event.builder()
                 .id("event123")
                 .name("Hackathon")
-                .clubId(clubId)
+                .organizationId(organizationId)
                 .createdByUserId(creatorId)
                 .build();
 
-        Club club = Club.builder()
-                .id(clubId)
-                .name("Tech Club")
+        Organization organization = Organization.builder()
+                .id(organizationId)
+                .name("Tech Organization")
                 .build();
 
-        ClubMember creatorMember = ClubMember.builder()
+        OrganizationMember creatorMember = OrganizationMember.builder()
                 .userId(creatorId)
                 .build();
 
-        ClubMember regularMember = ClubMember.builder()
+        OrganizationMember regularMember = OrganizationMember.builder()
                 .userId(memberId)
                 .build();
 
         EventCreatedEvent createdEvent = new EventCreatedEvent(this, event);
 
-        when(clubService.getClubById(clubId)).thenReturn(club);
-        when(clubMemberRepository.findByClubId(clubId)).thenReturn(Arrays.asList(creatorMember, regularMember));
+        when(organizationService.getOrganizationById(organizationId)).thenReturn(organization);
+        when(organizationMemberRepository.findByOrganizationId(organizationId)).thenReturn(Arrays.asList(creatorMember, regularMember));
 
         // Act
         listener.handleEventCreatedEvent(createdEvent);
 
         // Assert
-        verify(notificationService, times(1)).createNotification(
-                eq(memberId),
-                eq("New Event in Tech Club!"),
-                eq("Hackathon has been announced! Check it out."),
-                eq(NotificationType.EVENT),
-                any(Map.class)
-        );
-        // Verify creator did not get notified
+        // Verify that no notification was sent because sending notifications is temporarily disabled
         verify(notificationService, never()).createNotification(
-                eq(creatorId),
+                any(),
                 any(),
                 any(),
                 any(),

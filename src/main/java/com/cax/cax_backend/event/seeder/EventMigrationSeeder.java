@@ -2,8 +2,8 @@ package com.cax.cax_backend.event.seeder;
 
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.event.repository.EventRepository;
-import com.cax.cax_backend.club.repository.ClubRepository;
-import com.cax.cax_backend.club.model.Club;
+import com.cax.cax_backend.organization.repository.OrganizationRepository;
+import com.cax.cax_backend.organization.model.Organization;
 import com.cax.cax_backend.college.repository.CollegeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +17,7 @@ import java.util.List;
 public class EventMigrationSeeder implements CommandLineRunner {
 
     private final EventRepository eventRepository;
-    private final ClubRepository clubRepository;
+    private final OrganizationRepository organizationRepository;
     private final CollegeRepository collegeRepository;
 
     @Override
@@ -36,15 +36,15 @@ public class EventMigrationSeeder implements CommandLineRunner {
 
             // Populate collegeId if missing
             if (event.getCollegeId() == null || event.getCollegeId().isBlank()) {
-                if (event.getClubId() != null) {
+                if (event.getOrganizationId() != null) {
                     try {
-                        Club club = clubRepository.findById(event.getClubId()).orElse(null);
+                        Organization club = organizationRepository.findById(event.getOrganizationId()).orElse(null);
                         if (club != null) {
                             event.setCollegeId(club.getCollegeId());
                             updated = true;
                         }
                     } catch (Exception e) {
-                        log.warn("Failed to find club {} for event migration: {}", event.getClubId(), e.getMessage());
+                        log.warn("Failed to find club {} for event migration: {}", event.getOrganizationId(), e.getMessage());
                     }
                 }
             }

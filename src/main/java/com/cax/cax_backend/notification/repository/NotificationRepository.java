@@ -10,12 +10,6 @@ public interface NotificationRepository extends MongoRepository<Notification, St
     List<Notification> findByUserIdOrderByCreatedAtDesc(String userId);
     long countByUserIdAndReadFalse(String userId);
 
-    @Query(value = "{ 'userId': ?0, 'type': ?1, 'read': false, 'data.clubId': ?2 }", count = true)
-    long countUnreadChatNotifications(String userId, NotificationType type, String clubId);
-
-    @Query("{ 'userId': ?0, 'type': ?1, 'read': false, 'data.clubId': ?2 }")
-    List<Notification> findUnreadChatNotifications(String userId, NotificationType type, String clubId);
-
     @Query("{ 'data.actorId': ?0 }")
     List<Notification> findByActorId(String actorId);
 }

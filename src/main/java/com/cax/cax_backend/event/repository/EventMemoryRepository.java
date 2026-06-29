@@ -10,4 +10,5 @@ import org.springframework.stereotype.Repository;
 public interface EventMemoryRepository extends MongoRepository<EventMemory, String> {
     Page<EventMemory> findByEventIdAndHiddenOrderByUploadedAtDesc(String eventId, boolean hidden, Pageable pageable);
     Page<EventMemory> findByEventIdOrderByUploadedAtDesc(String eventId, Pageable pageable);
+    void deleteByEventId(String eventId);
 }

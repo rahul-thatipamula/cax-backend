@@ -200,20 +200,18 @@ public class NotificationService {
                 messageBuilder.putAllData(data);
             }
 
-            // Android config for push alert sound & clicks
+            // Android config for click handling
             AndroidConfig androidConfig = AndroidConfig.builder()
                     .setPriority(AndroidConfig.Priority.HIGH)
                     .setNotification(AndroidNotification.builder()
-                            .setSound("cax_alert")
                             .setClickAction("FLUTTER_NOTIFICATION_CLICK")
                             .build())
                     .build();
             messageBuilder.setAndroidConfig(androidConfig);
 
-            // iOS (APNS) config for push alert sound
+            // iOS (APNS) config — silent delivery, no sound
             ApnsConfig apnsConfig = ApnsConfig.builder()
                     .setAps(Aps.builder()
-                            .setSound("default")
                             .setContentAvailable(true)
                             .build())
                     .build();
@@ -236,19 +234,6 @@ public class NotificationService {
             }
         } catch (Exception e) {
             log.error("Failed to send FCM message: {}", e.getMessage(), e);
-        }
-    }
-
-    public void markClubChatAsRead(String userId, String clubId) {
-        List<Notification> unread = repo.findUnreadChatNotifications(userId, NotificationType.CLUB_CHAT, clubId);
-        if (unread != null && !unread.isEmpty()) {
-            Instant now = Instant.now();
-            for (Notification n : unread) {
-                n.setRead(true);
-                n.setReadAt(now);
-            }
-            repo.saveAll(unread);
-            log.info("Marked {} chat notifications as read for user {} in club {}", unread.size(), userId, clubId);
         }
     }
 }

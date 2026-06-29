@@ -2,9 +2,9 @@ package com.cax.cax_backend.home.controller;
 
 import com.cax.cax_backend.carousel.model.Carousel;
 import com.cax.cax_backend.carousel.repository.CarouselRepository;
-import com.cax.cax_backend.club.model.Club;
-import com.cax.cax_backend.club.model.ClubMember;
-import com.cax.cax_backend.club.service.ClubService;
+import com.cax.cax_backend.organization.model.Organization;
+import com.cax.cax_backend.organization.model.OrganizationMember;
+import com.cax.cax_backend.organization.service.OrganizationService;
 import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.event.service.EventService;
@@ -30,7 +30,7 @@ import java.util.Map;
 public class HomeController {
 
     private final CarouselRepository carouselRepository;
-    private final ClubService clubService;
+    private final OrganizationService organizationService;
     private final EventService eventService;
     private final NotificationService notificationService;
     private final UserService userService;
@@ -56,12 +56,12 @@ public class HomeController {
         }
 
         // 2. Fetch Joined Clubs
-        List<ClubMember> memberships = clubService.getUserMemberships(userId);
-        List<String> clubIds = memberships.stream()
-                .map(ClubMember::getClubId)
+        List<OrganizationMember> memberships = organizationService.getUserOrganizationMemberships(userId);
+        List<String> organizationIds = memberships.stream()
+                .map(OrganizationMember::getOrganizationId)
                 .filter(id -> id != null && !id.isBlank())
                 .toList();
-        List<Club> myClubs = clubService.getClubsByIds(clubIds);
+        List<Organization> myOrganizations = organizationService.getOrganizationsByIds(organizationIds);
 
         // 3. Fetch Discover Events (Limit to top 5)
         List<Event> discoverEvents = eventService.discoverEvents(userId);
@@ -80,7 +80,7 @@ public class HomeController {
 
         DashboardResponse response = DashboardResponse.builder()
                 .banners(banners)
-                .myClubs(myClubs)
+                .myOrganizations(myOrganizations)
                 .discoverEvents(discoverEvents)
                 .joinedEvents(joinedEvents)
                 .unreadNotificationCount(unreadCount)

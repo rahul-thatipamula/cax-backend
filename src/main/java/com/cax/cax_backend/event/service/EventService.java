@@ -11,9 +11,10 @@ import java.util.concurrent.Executor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
-import com.cax.cax_backend.club.model.Club;
-import com.cax.cax_backend.club.model.ClubMember;
-import com.cax.cax_backend.club.service.ClubService;
+import com.cax.cax_backend.event.model.EventCollaborator;
+import com.cax.cax_backend.event.payment.RazorpayService;
+import com.cax.cax_backend.organization.model.Organization;
+import com.cax.cax_backend.organization.service.OrganizationService;
 import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.event.event.EventCreatedEvent;
 import com.cax.cax_backend.event.event.EventRegistrationReviewedEvent;
@@ -28,12 +29,14 @@ import com.cax.cax_backend.event.model.EventMemory;
 import com.cax.cax_backend.event.repository.EventMemoryRepository;
 import com.cax.cax_backend.notification.service.NotificationService;
 import com.cax.cax_backend.common.enums.NotificationEnums.NotificationType;
+import com.cax.cax_backend.settings.service.SystemSettingService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 
 @Slf4j
 @Service
@@ -42,7 +45,7 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final EventParticipantRepository eventParticipantRepository;
-    private final ClubService clubService;
+    private final OrganizationService organizationService;
     private final UserService userService;
     private final com.cax.cax_backend.college.repository.CollegeRepository collegeRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -50,6 +53,8 @@ public class EventService {
     private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final Executor taskExecutor;
+    private final RazorpayService razorpayService;
+    private final SystemSettingService systemSettingService;
 
     // ========================================================================
     // EVENT CRUD
@@ -58,9 +63,9 @@ public class EventService {
     private void populateCollegeDetails(Event event) {
         if (event == null) return;
         try {
-            Club club = clubService.getClubById(event.getClubId());
-            event.setCollegeId(club.getCollegeId());
-            collegeRepository.findById(club.getCollegeId()).ifPresent(c -> {
+            Organization organization = organizationService.getOrganizationById(event.getOrganizationId());
+            event.setCollegeId(organization.getCollegeId());
+            collegeRepository.findById(organization.getCollegeId()).ifPresent(c -> {
                 event.setCollegeName(c.getCollegeName());
             });
         } catch (Exception e) {
@@ -98,11 +103,20 @@ public class EventService {
         eventData.setUpiId(null);
         eventData.setUpiQrCode(null);
         eventData.setIdCardRequired(false);
+        eventData.setRequiredFields(new java.util.ArrayList<>());
     }
 
-    public Event createEvent(String userId, String clubId, Event eventData) {
-        Club club = clubService.getClubById(clubId);
-        verifyClubLeader(userId, club);
+    public Event createEvent(String userId, String organizationId, Event eventData) {
+        if (eventData.getIdempotencyKey() != null && !eventData.getIdempotencyKey().isEmpty()) {
+            Optional<Event> existing = eventRepository.findByIdempotencyKey(eventData.getIdempotencyKey());
+            if (existing.isPresent()) {
+                log.info("Found existing event with idempotency key: {}", eventData.getIdempotencyKey());
+                return existing.get();
+            }
+        }
+
+        Organization organization = organizationService.getOrganizationById(organizationId);
+        verifyClubLeader(userId, organization);
 
         if (eventData.getEventImages() != null && eventData.getEventImages().size() > 9) {
             throw new BusinessException.BadRequestException("An event can have at most 9 event-related images.");
@@ -112,11 +126,17 @@ public class EventService {
             throw new BusinessException.BadRequestException("An event can have at most 4 coordinators.");
         }
 
+        if (eventData.isPaid() && "RAZORPAY".equals(eventData.getPaymentMode())) {
+            if (!systemSettingService.isRazorpayEnabled()) {
+                throw new BusinessException.BadRequestException("Razorpay payment gateway is currently disabled by admin.");
+            }
+        }
+
         enforceExternallyManagedConstraints(eventData);
 
-        eventData.setClubId(clubId);
-        eventData.setCollegeId(club.getCollegeId());
-        collegeRepository.findById(club.getCollegeId()).ifPresent(c -> {
+        eventData.setOrganizationId(organizationId);
+        eventData.setCollegeId(organization.getCollegeId());
+        collegeRepository.findById(organization.getCollegeId()).ifPresent(c -> {
             eventData.setCollegeName(c.getCollegeName());
         });
         eventData.setCreatedByUserId(userId);
@@ -124,7 +144,44 @@ public class EventService {
         eventData.setCreatedAt(Instant.now());
         eventData.setUpdatedAt(Instant.now());
 
-        Event saved = eventRepository.save(eventData);
+        Event saved;
+        try {
+            saved = eventRepository.save(eventData);
+        } catch (DuplicateKeyException e) {
+            if (eventData.getIdempotencyKey() != null && !eventData.getIdempotencyKey().isEmpty()) {
+                log.warn("Duplicate key exception caught for idempotency key: {}. Attempting to retrieve existing event.", eventData.getIdempotencyKey());
+                return eventRepository.findByIdempotencyKey(eventData.getIdempotencyKey())
+                        .orElseThrow(() -> e);
+            }
+            throw e;
+        }
+
+        // Resolve collaboratorIds supplied at creation time
+        if (eventData.getCollaboratorIds() != null && !eventData.getCollaboratorIds().isEmpty()) {
+            boolean changed = false;
+            for (String collabOrgId : eventData.getCollaboratorIds()) {
+                if (collabOrgId.equals(organizationId)) continue;
+                boolean alreadyAdded = saved.getCollaborators().stream()
+                        .anyMatch(c -> c.getOrganizationId().equals(collabOrgId));
+                if (alreadyAdded) continue;
+                try {
+                    Organization collabOrg = organizationService.getOrganizationById(collabOrgId);
+                    if (!collabOrg.getCollegeId().equals(organization.getCollegeId())) continue;
+                    saved.getCollaborators().add(EventCollaborator.builder()
+                            .organizationId(collabOrg.getId())
+                            .organizationName(collabOrg.getName())
+                            .organizationLogo(collabOrg.getLogo() != null ? collabOrg.getLogo() : "")
+                            .collegeId(collabOrg.getCollegeId())
+                            .build());
+                    changed = true;
+                } catch (Exception e) {
+                    log.warn("Skipping collaborator {} during event creation: {}", collabOrgId, e.getMessage());
+                }
+            }
+            if (changed) {
+                saved = eventRepository.save(saved);
+            }
+        }
 
         try {
             eventPublisher.publishEvent(new EventCreatedEvent(this, saved));
@@ -132,14 +189,14 @@ public class EventService {
             log.error("Failed to publish EventCreatedEvent for event: {}", saved.getId(), e);
         }
 
-        log.info("Event '{}' created by user {} in club {}", saved.getName(), userId, clubId);
+        log.info("Event '{}' created by user {} in organization {}", saved.getName(), userId, organizationId);
         return saved;
     }
 
     public Event updateEvent(String userId, String eventId, Event eventData) {
         Event event = getEventById(eventId);
-        Club club = clubService.getClubById(event.getClubId());
-        verifyClubLeader(userId, club);
+        Organization organization = organizationService.getOrganizationById(event.getOrganizationId());
+        verifyClubLeader(userId, organization);
 
         // Reject changes to locked fields — these cannot be changed after creation
         if (event.isGlobal() != eventData.isGlobal()) {
@@ -154,11 +211,6 @@ public class EventService {
             throw new BusinessException.BadRequestException(
                     "Payment type (paid/free) cannot be changed after creation.");
         }
-        if (event.isIdCardRequired() != eventData.isIdCardRequired()) {
-            throw new BusinessException.BadRequestException(
-                    "ID Card requirement cannot be changed after creation.");
-        }
-
         // Determine effective isExternallyManaged for this update
         boolean willBeExternal = eventData.isExternallyManaged();
 
@@ -181,7 +233,7 @@ public class EventService {
         // Block switching from global → college-level if participants from other colleges exist
         boolean switchingToCollegeLevel = event.isGlobal() && !eventData.isGlobal();
         if (switchingToCollegeLevel) {
-            String clubCollegeId = club.getCollegeId();
+            String clubCollegeId = organization.getCollegeId();
             long outsideCount = eventParticipantRepository
                     .countByEventIdAndCollegeIdNotAndCollegeIdNotNull(eventId, clubCollegeId);
             if (outsideCount > 0) {
@@ -202,10 +254,14 @@ public class EventService {
             event.setUpiId(null);
             event.setUpiQrCode(null);
             event.setIdCardRequired(false);
+            event.setRequiredFields(new java.util.ArrayList<>());
         } else {
             event.setPaid(eventData.isPaid());
             event.setFee(eventData.getFee());
             event.setIdCardRequired(eventData.isIdCardRequired());
+            if (eventData.getRequiredFields() != null) {
+                event.setRequiredFields(eventData.getRequiredFields());
+            }
             if (eventData.getUpiId() != null) event.setUpiId(eventData.getUpiId());
             if (eventData.getUpiQrCode() != null) event.setUpiQrCode(eventData.getUpiQrCode());
         }
@@ -252,23 +308,54 @@ public class EventService {
         log.info("Event '{}' cancelled by user {}", event.getName(), userId);
     }
 
+    public void deleteEvent(String userId, String eventId) {
+        Event event = getEventById(eventId);
+        verifyEventManager(userId, event);
+
+        Instant createdAt = event.getCreatedAt();
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+        long secondsElapsed = java.time.Duration.between(createdAt, Instant.now()).getSeconds();
+        if (secondsElapsed > 22.5 * 60) {
+            throw new BusinessException.BadRequestException("Event deletion is locked after 22.5 minutes of creation.");
+        }
+
+        if (eventParticipantRepository.existsByEventId(eventId)) {
+            throw new BusinessException.BadRequestException("Cannot delete event because users have already registered or joined.");
+        }
+
+        eventMemoryRepository.deleteByEventId(eventId);
+        eventRepository.delete(event);
+        log.info("Event '{}' ({}) deleted by user {}", event.getName(), eventId, userId);
+    }
+
     // ========================================================================
     // EVENT QUERIES
     // ========================================================================
 
-    public List<Event> getClubEvents(String userId, String clubId) {
-        Club club = clubService.getClubById(clubId);
+    public List<Event> getOrganizationEvents(String userId, String organizationId) {
+        Organization organization = organizationService.getOrganizationById(organizationId);
         User user = userService.getUserByUserId(userId);
         boolean isAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
         if (!isAdmin) {
             if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
                 throw new BusinessException.BadRequestException("User has no college assigned.");
             }
-            if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+            if (!organization.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
                 throw new BusinessException.BadRequestException("You cannot access events from another college.");
             }
         }
-        return eventRepository.findByClubId(clubId);
+
+        // Merge primary events and collaborative events; dedup by event ID.
+        List<Event> primaryEvents = eventRepository.findByOrganizationId(organizationId);
+        List<Event> collabEvents  = eventRepository.findByCollaboratingOrganizationId(organizationId);
+
+        java.util.LinkedHashMap<String, Event> deduped = new java.util.LinkedHashMap<>();
+        for (Event e : primaryEvents) deduped.put(e.getId(), e);
+        for (Event e : collabEvents)  deduped.putIfAbsent(e.getId(), e);
+
+        return new java.util.ArrayList<>(deduped.values());
     }
 
     public Event getEventById(String eventId) {
@@ -280,7 +367,7 @@ public class EventService {
 
     public Map<String, Object> getEventDetailForUser(String userId, String eventId) {
         Event event = getEventById(eventId);
-        Club club = clubService.getClubById(event.getClubId());
+        Organization organization = organizationService.getOrganizationById(event.getOrganizationId());
         User user = userService.getUserByUserId(userId);
         
         boolean isSystemAdmin = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN;
@@ -288,23 +375,41 @@ public class EventService {
             if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
                 throw new BusinessException.BadRequestException("User has no college assigned.");
             }
-            if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+            if (!organization.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
                 throw new BusinessException.BadRequestException("You cannot access an event from another college.");
             }
         }
 
         // Check participant status
-        Optional<EventParticipant> participant = eventParticipantRepository.findByEventIdAndUserId(eventId, userId);
+        Optional<EventParticipant> participant = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId);
+
+        // Determine organizer role for this user
+        String organizerRole = null;
+        if (userId.equals(event.getCreatedByUserId())) {
+            organizerRole = "organizer";
+        } else if (isSystemAdmin) {
+            organizerRole = "admin";
+        } else {
+            try {
+                if (organizationService.isOrganizationLeaderOrManager(userId, organization.getId())) {
+                    organizerRole = "club_leader";
+                }
+            } catch (Exception e) {
+                log.warn("Could not determine club role for user {} on event {}", userId, eventId, e);
+            }
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("event", event);
-        result.put("organizerRole", null);
-        
+        result.put("organizerRole", organizerRole);
+
         String status = participant.map(EventParticipant::getStatus).orElse(null);
         if (status != null && "REJECTED".equals(status) && !event.isPaid()) {
             status = "REGISTRATION_REJECTED";
         }
         result.put("participantStatus", status);
+
+
         return result;
     }
 
@@ -403,6 +508,7 @@ public class EventService {
                     "This event is managed externally. Please register via the provided external link.");
         }
 
+
         if (!"ACTIVE".equals(event.getStatus())) {
             throw new BusinessException.BadRequestException("This event is no longer accepting registrations.");
         }
@@ -419,16 +525,16 @@ public class EventService {
 
         // Non-global events are restricted to the same college
         if (!event.isGlobal()) {
-            Club club = clubService.getClubById(event.getClubId());
+            Organization organization = organizationService.getOrganizationById(event.getOrganizationId());
             if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
                 throw new BusinessException.BadRequestException("User has no college assigned.");
             }
-            if (!club.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+            if (!organization.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
                 throw new BusinessException.BadRequestException("You can only register for events at your own college.");
             }
         }
 
-        // Collect & validate ID card details when the event requires them
+        // Collect & validate ID card details when the event requires them (legacy compatibility)
         String idCardNumber = null;
         String idCardName = null;
         String idCardDepartment = null;
@@ -441,6 +547,35 @@ public class EventService {
                         "ID card number, name on card, and department are required to register for this event.");
             }
         }
+
+        // Collect & validate dynamic required fields
+        String gender = null;
+        String dateOfBirth = null;
+        String phoneNumber = null;
+        String collegeNameField = null;
+        String departmentField = null;
+        String registerNumber = null;
+        String yearOfStudy = null;
+
+        if (event.getRequiredFields() != null) {
+            for (String field : event.getRequiredFields()) {
+                Object val = idCardDetails != null ? idCardDetails.get(field) : null;
+                String trimmed = trimToNull(val);
+                if (trimmed == null) {
+                    throw new BusinessException.BadRequestException(field + " is required to register for this event.");
+                }
+                switch (field) {
+                    case "gender": gender = trimmed; break;
+                    case "dateOfBirth": dateOfBirth = trimmed; break;
+                    case "phoneNumber": phoneNumber = trimmed; break;
+                    case "collegeName": collegeNameField = trimmed; break;
+                    case "department": departmentField = trimmed; break;
+                    case "registerNumber": registerNumber = trimmed; break;
+                    case "yearOfStudy": yearOfStudy = trimmed; break;
+                }
+            }
+        }
+
         String collegeName = null;
         String userCollegeId = null;
         if (user.getCollegeDetails() != null) {
@@ -448,8 +583,11 @@ public class EventService {
             userCollegeId = user.getCollegeDetails().getCollegeId();
         }
 
-        // Free events → PENDING_APPROVAL (requires organizer approval)
-        // Paid events → PENDING_PAYMENT (requires payment submission)
+        // Custom college name overrides user's default college name if requested
+        if (collegeNameField != null) {
+            collegeName = collegeNameField;
+        }
+
         String initialStatus = event.isPaid() ? "PENDING_PAYMENT" : "PENDING_APPROVAL";
 
         EventParticipant participant = EventParticipant.builder()
@@ -460,9 +598,16 @@ public class EventService {
                 .picture(user.getPicture())
                 .college(collegeName)
                 .collegeId(userCollegeId)
-                .idCardNumber(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(idCardNumber))
+                .idCardNumber(idCardNumber != null ? com.cax.cax_backend.common.util.EncryptionUtils.encrypt(idCardNumber) : null)
                 .idCardName(idCardName)
                 .idCardDepartment(idCardDepartment)
+                .gender(gender)
+                .dateOfBirth(dateOfBirth)
+                .phoneNumber(phoneNumber)
+                .collegeName(collegeNameField)
+                .department(departmentField)
+                .registerNumber(registerNumber)
+                .yearOfStudy(yearOfStudy)
                 .status(initialStatus)
                 .registeredAt(Instant.now())
                 .build();
@@ -488,7 +633,7 @@ public class EventService {
             throw new BusinessException.BadRequestException("This is a free event, payment is not required.");
         }
 
-        EventParticipant participant = eventParticipantRepository.findByEventIdAndUserId(eventId, userId)
+        EventParticipant participant = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new BusinessException.BadRequestException("You are not registered for this event."));
 
         if (!"PENDING_PAYMENT".equals(participant.getStatus()) && !"REJECTED".equals(participant.getStatus())) {
@@ -499,6 +644,17 @@ public class EventService {
         participant.setPaymentScreenshot(screenshotUrl);
         participant.setAmountPaid(amount);
         participant.setStatus("PAYMENT_SUBMITTED");
+
+        if (participant.getPaymentHistory() == null) {
+            participant.setPaymentHistory(new java.util.ArrayList<>());
+        }
+        participant.getPaymentHistory().add(EventParticipant.PaymentHistoryEntry.builder()
+                .status("PAYMENT_SUBMITTED")
+                .utrNumber(participant.getUtrNumber())
+                .paymentScreenshot(participant.getPaymentScreenshot())
+                .amountPaid(participant.getAmountPaid())
+                .timestamp(Instant.now())
+                .build());
 
         return eventParticipantRepository.save(participant);
     }
@@ -534,6 +690,33 @@ public class EventService {
         participant.setVerifiedByUserId(organizerId);
         participant.setVerifiedAt(Instant.now());
 
+        // Capture verifier identity for manage-screen traceability
+        try {
+            User verifier = userService.getUserByUserId(organizerId);
+            participant.setVerifiedByName(verifier.getName());
+            String actingOrgId = findActorOrgId(organizerId, event);
+            participant.setVerifiedByOrganizationId(actingOrgId);
+            Organization actingOrg = organizationService.getOrganizationById(actingOrgId);
+            participant.setVerifiedByOrganizationName(actingOrg.getName());
+        } catch (Exception e) {
+            log.warn("Could not capture verifier identity for participant {}", participantId, e);
+        }
+
+        if (participant.getPaymentHistory() == null) {
+            participant.setPaymentHistory(new java.util.ArrayList<>());
+        }
+        participant.getPaymentHistory().add(EventParticipant.PaymentHistoryEntry.builder()
+                .status(approved ? "VERIFIED" : "REJECTED")
+                .utrNumber(participant.getUtrNumber())
+                .paymentScreenshot(participant.getPaymentScreenshot())
+                .amountPaid(participant.getAmountPaid())
+                .timestamp(Instant.now())
+                .verifiedByUserId(organizerId)
+                .verifiedByName(participant.getVerifiedByName())
+                .verifiedByOrganizationId(participant.getVerifiedByOrganizationId())
+                .verifiedByOrganizationName(participant.getVerifiedByOrganizationName())
+                .build());
+
         EventParticipant saved = eventParticipantRepository.save(participant);
         try {
             eventPublisher.publishEvent(new EventRegistrationReviewedEvent(this, saved, event));
@@ -551,6 +734,13 @@ public class EventService {
         participants.forEach(p -> {
             if (p.getIdCardNumber() != null) p.setIdCardNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getIdCardNumber()));
             if (p.getUtrNumber() != null) p.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getUtrNumber()));
+            if (p.getPaymentHistory() != null) {
+                p.getPaymentHistory().forEach(h -> {
+                    if (h.getUtrNumber() != null) {
+                        h.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(h.getUtrNumber()));
+                    }
+                });
+            }
         });
         return participants;
     }
@@ -560,7 +750,7 @@ public class EventService {
 
         StringBuilder csv = new StringBuilder();
         // CSV Header
-        csv.append("Registration ID,Participant Name,Email Address,College Affiliation,ID Card Number,Name On ID Card,Department,Registration Date,Ticket Status,Ticket Code,Amount Paid (INR),UTR Number,Checked In,Checked In Time,Suspicious,Suspicious Note\n");
+        csv.append("Registration ID,Participant Name,Email Address,College Affiliation,ID Card Number,Name On ID Card,Department,Gender,Date of Birth,Phone Number,Custom College Name,Custom Department,Register Number,Year of Study,Registration Date,Ticket Status,Ticket Code,Amount Paid (INR),UTR Number,Checked In,Checked In Time,Suspicious,Suspicious Note\n");
 
         for (EventParticipant p : participants) {
             csv.append(escapeCsv(p.getId())).append(",")
@@ -570,6 +760,13 @@ public class EventService {
                .append(escapeCsv(p.getIdCardNumber())).append(",")
                .append(escapeCsv(p.getIdCardName())).append(",")
                .append(escapeCsv(p.getIdCardDepartment())).append(",")
+               .append(escapeCsv(p.getGender())).append(",")
+               .append(escapeCsv(p.getDateOfBirth())).append(",")
+               .append(escapeCsv(p.getPhoneNumber())).append(",")
+               .append(escapeCsv(p.getCollegeName())).append(",")
+               .append(escapeCsv(p.getDepartment())).append(",")
+               .append(escapeCsv(p.getRegisterNumber())).append(",")
+               .append(escapeCsv(p.getYearOfStudy())).append(",")
                .append(escapeCsv(p.getRegisteredAt() != null ? p.getRegisteredAt().toString() : "")).append(",")
                .append(escapeCsv(p.getStatus())).append(",")
                .append(escapeCsv(p.getTicketCode())).append(",")
@@ -600,8 +797,8 @@ public class EventService {
     // AUTHORIZATION HELPERS
     // ========================================================================
 
-    private void verifyClubLeader(String userId, Club club) {
-        if (clubService.isClubLeaderOrManager(userId, club.getId())) {
+    private void verifyClubLeader(String userId, Organization organization) {
+        if (organizationService.isOrganizationLeaderOrManager(userId, organization.getId())) {
             return;
         }
         throw new BusinessException.BadRequestException("Only the President, Vice President, or Club Managers can perform this action.");
@@ -611,15 +808,16 @@ public class EventService {
         if (userId.equals(event.getCreatedByUserId())) {
             return;
         }
-        Club club = clubService.getClubById(event.getClubId());
-        if (clubService.isClubLeaderOrManager(userId, club.getId())) {
+        Organization organization = organizationService.getOrganizationById(event.getOrganizationId());
+        if (organizationService.isOrganizationLeaderOrManager(userId, organization.getId())) {
             return;
         }
         User user = userService.getUserByUserId(userId);
         if (user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN) {
             return;
         }
-        throw new BusinessException.BadRequestException("Only the event organizer or club leaders can manage this event.");
+        throw new BusinessException.BadRequestException(
+                "Only the event organizer or the organization's leaders can manage this event.");
     }
 
     public void sendEventAnnouncementNotification(String userId, String eventId) {
@@ -703,6 +901,20 @@ public class EventService {
 
         participant.setCheckedIn(true);
         participant.setCheckedInAt(Instant.now());
+
+        // Capture check-in operator identity for traceability across collaborating orgs
+        try {
+            User checker = userService.getUserByUserId(organizerId);
+            participant.setCheckedInByUserId(organizerId);
+            participant.setCheckedInByName(checker.getName());
+            String actingOrgId = findActorOrgId(organizerId, event);
+            participant.setCheckedInByOrganizationId(actingOrgId);
+            Organization actingOrg = organizationService.getOrganizationById(actingOrgId);
+            participant.setCheckedInByOrganizationName(actingOrg.getName());
+        } catch (Exception e) {
+            log.warn("Could not capture check-in operator identity for event {}", eventId, e);
+        }
+
         return eventParticipantRepository.save(participant);
     }
 
@@ -747,7 +959,84 @@ public class EventService {
         if (userId.equals(event.getCreatedByUserId())) {
             return true;
         }
-        return clubService.isClubLeaderOrManager(userId, event.getClubId());
+        if (organizationService.isOrganizationLeaderOrManager(userId, event.getOrganizationId())) {
+            return true;
+        }
+        return false;
+    }
+
+    // ========================================================================
+    // COLLABORATION MANAGEMENT
+    // ========================================================================
+
+    /** Adds an organization to the event's collaborators list. Only the primary org leader can do this. */
+    public Event addCollaborator(String userId, String eventId, String collaboratingOrgId) {
+        Event event = getEventById(eventId);
+
+        if (!organizationService.isOrganizationLeaderOrManager(userId, event.getOrganizationId())) {
+            User user = userService.getUserByUserId(userId);
+            if (user.getRole() != com.cax.cax_backend.common.enums.UserRole.ADMIN) {
+                throw new BusinessException.BadRequestException(
+                        "Only the primary organization leader can add collaborators.");
+            }
+        }
+
+        if (event.getOrganizationId().equals(collaboratingOrgId)) {
+            throw new BusinessException.BadRequestException("An event cannot list itself as a collaborator.");
+        }
+
+        boolean alreadyAdded = event.getCollaborators().stream()
+                .anyMatch(c -> c.getOrganizationId().equals(collaboratingOrgId));
+        if (alreadyAdded) {
+            throw new BusinessException.BadRequestException("This organization is already a collaborator.");
+        }
+
+        Organization collabOrg = organizationService.getOrganizationById(collaboratingOrgId);
+
+        EventCollaborator collaborator = EventCollaborator.builder()
+                .organizationId(collaboratingOrgId)
+                .organizationName(collabOrg.getName())
+                .organizationLogo(collabOrg.getLogo())
+                .collegeId(collabOrg.getCollegeId())
+                .build();
+
+        event.getCollaborators().add(collaborator);
+        event.setUpdatedAt(Instant.now());
+        return eventRepository.save(event);
+    }
+
+    /** Removes a collaborating organization from the event. Only the primary org leader can do this. */
+    public Event removeCollaborator(String userId, String eventId, String organizationId) {
+        Event event = getEventById(eventId);
+
+        if (!organizationService.isOrganizationLeaderOrManager(userId, event.getOrganizationId())) {
+            User user = userService.getUserByUserId(userId);
+            if (user.getRole() != com.cax.cax_backend.common.enums.UserRole.ADMIN) {
+                throw new BusinessException.BadRequestException(
+                        "Only the primary organization leader can remove collaborators from this event.");
+            }
+        }
+
+        boolean removed = event.getCollaborators().removeIf(c -> c.getOrganizationId().equals(organizationId));
+        if (!removed) {
+            throw new BusinessException.ResourceNotFoundException("Collaboration", organizationId);
+        }
+
+        event.setUpdatedAt(Instant.now());
+        Event saved = eventRepository.save(event);
+        log.info("Collaborator removed: event={} org={}", eventId, organizationId);
+        return saved;
+    }
+
+    /**
+     * Resolves the organization the acting user belongs to for this event.
+     * Tries the primary org first, then walks the accepted collaborators list.
+     */
+    private String findActorOrgId(String userId, Event event) {
+        if (organizationService.isOrganizationLeaderOrManager(userId, event.getOrganizationId())) {
+            return event.getOrganizationId();
+        }
+        return event.getOrganizationId();
     }
 
     public EventMemory uploadMemory(String userId, String eventId, String imageUrl) {
@@ -841,7 +1130,7 @@ public class EventService {
         boolean isManager = hasEventManagePermission(userId, event);
         
         if (!isManager) {
-            Optional<EventParticipant> participantOpt = eventParticipantRepository.findByEventIdAndUserId(eventId, userId);
+            Optional<EventParticipant> participantOpt = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId);
             boolean isJoined = participantOpt.isPresent() && "VERIFIED".equalsIgnoreCase(participantOpt.get().getStatus());
             if (!isJoined) {
                 throw new BusinessException.BadRequestException("Unauthorized: Only registered participants can view this event's memories.");
@@ -861,4 +1150,88 @@ public class EventService {
             return eventMemoryRepository.findByEventIdAndHiddenOrderByUploadedAtDesc(eventId, false, pageable);
         }
     }
+
+    // ========================================================================
+    // RAZORPAY PAYMENT
+    // ========================================================================
+
+    public Map<String, Object> initRazorpayPayment(String userId, String eventId) {
+        if (!systemSettingService.isRazorpayEnabled()) {
+            throw new BusinessException.BadRequestException("Razorpay payment gateway is currently disabled by admin.");
+        }
+        Event event = getEventById(eventId);
+        if (!event.isPaid()) {
+            throw new BusinessException.BadRequestException("This is a free event, payment is not required.");
+        }
+        if (event.isExternallyManaged()) {
+            throw new BusinessException.BadRequestException("Payment not applicable for externally managed events.");
+        }
+
+        EventParticipant participant = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId)
+                .orElseThrow(() -> new BusinessException.BadRequestException("You are not registered for this event."));
+
+        if (!"PENDING_PAYMENT".equals(participant.getStatus()) && !"REJECTED".equals(participant.getStatus())) {
+            throw new BusinessException.BadRequestException(
+                    "Razorpay payment not allowed in current status: " + participant.getStatus());
+        }
+
+        long amountInPaise = Math.round(event.getFee() * 100);
+        String receipt = ("evnt_" + eventId + "_" + userId).substring(0,
+                Math.min(40, 5 + eventId.length() + 1 + userId.length()));
+
+        Map<String, Object> order = razorpayService.createOrder(amountInPaise, receipt);
+
+        String razorpayOrderId = (String) order.get("id");
+        participant.setRazorpayOrderId(razorpayOrderId);
+        eventParticipantRepository.save(participant);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("orderId", razorpayOrderId);
+        result.put("amount", amountInPaise);
+        result.put("currency", "INR");
+        result.put("keyId", razorpayService.getKeyId());
+        result.put("eventName", event.getName());
+        result.put("eventFee", event.getFee());
+        return result;
+    }
+
+    public EventParticipant confirmRazorpayPayment(String userId, String eventId,
+                                                   String razorpayPaymentId,
+                                                   String razorpayOrderId,
+                                                   String razorpaySignature) {
+        if (!razorpayService.verifySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature)) {
+            throw new BusinessException.BadRequestException("Payment verification failed: invalid signature.");
+        }
+
+        Event event = getEventById(eventId);
+        EventParticipant participant = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId)
+                .orElseThrow(() -> new BusinessException.BadRequestException("You are not registered for this event."));
+
+        if (!"PENDING_PAYMENT".equals(participant.getStatus()) && !"REJECTED".equals(participant.getStatus())) {
+            throw new BusinessException.BadRequestException(
+                    "Cannot confirm payment in current status: " + participant.getStatus());
+        }
+
+        participant.setRazorpayOrderId(razorpayOrderId);
+        participant.setRazorpayPaymentId(razorpayPaymentId);
+        participant.setAmountPaid(event.getFee());
+        participant.setStatus("VERIFIED");
+        participant.setVerifiedAt(Instant.now());
+
+        if (participant.getTicketCode() == null || participant.getTicketCode().isEmpty()) {
+            participant.setTicketCode("CAX-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        }
+
+        if (participant.getPaymentHistory() == null) {
+            participant.setPaymentHistory(new java.util.ArrayList<>());
+        }
+        participant.getPaymentHistory().add(EventParticipant.PaymentHistoryEntry.builder()
+                .status("VERIFIED")
+                .amountPaid(participant.getAmountPaid())
+                .timestamp(Instant.now())
+                .build());
+
+        return eventParticipantRepository.save(participant);
+    }
+
 }

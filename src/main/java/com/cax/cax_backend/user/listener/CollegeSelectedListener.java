@@ -7,10 +7,10 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-import com.cax.cax_backend.club.model.Club;
-import com.cax.cax_backend.club.model.ClubMember;
-import com.cax.cax_backend.club.repository.ClubMemberRepository;
-import com.cax.cax_backend.club.repository.ClubRepository;
+import com.cax.cax_backend.organization.model.Organization;
+import com.cax.cax_backend.organization.model.OrganizationMember;
+import com.cax.cax_backend.organization.repository.OrganizationMemberRepository;
+import com.cax.cax_backend.organization.repository.OrganizationRepository;
 import com.cax.cax_backend.email.service.EmailService;
 import com.cax.cax_backend.user.event.CollegeSelectedEvent;
 import com.cax.cax_backend.user.model.User;
@@ -24,8 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 public class CollegeSelectedListener {
 
 
-    private final ClubRepository clubRepository;
-    private final ClubMemberRepository clubMemberRepository;
+    private final OrganizationRepository clubRepository;
+    private final OrganizationMemberRepository organizationMemberRepository;
 
     @Async("taskExecutor")
     @EventListener
@@ -46,13 +46,13 @@ public class CollegeSelectedListener {
         String collegeId = user.getCollegeDetails().getCollegeId();
         String collegeName = user.getCollegeDetails().getCollegeName();
 
-        Optional<Club> existing = clubRepository.findByCollegeIdAndName(collegeId, "CAX Community");
+        Optional<Organization> existing = clubRepository.findByCollegeIdAndName(collegeId, "CAX Community");
 
-        Club community;
+        Organization community;
         if (existing.isPresent()) {
             community = existing.get();
         } else {
-            community = Club.builder()
+            community = Organization.builder()
                     .name("CAX Community")
                     .description("The official CAX community for " + collegeName + " — your college's home on CAX.")
                     .collegeId(collegeId)
@@ -66,9 +66,9 @@ public class CollegeSelectedListener {
             log.info("Created CAX Community for college: {} ({})", collegeName, collegeId);
         }
 
-        if (!clubMemberRepository.existsByClubIdAndUserId(community.getId(), user.getUserId())) {
-            ClubMember member = ClubMember.builder()
-                    .clubId(community.getId())
+        if (!organizationMemberRepository.existsByOrganizationIdAndUserId(community.getId(), user.getUserId())) {
+            OrganizationMember member = OrganizationMember.builder()
+                    .organizationId(community.getId())
                     .userId(user.getUserId())
                     .name(user.getName())
                     .email(user.getEmail())
@@ -76,7 +76,7 @@ public class CollegeSelectedListener {
                     .role("Member")
                     .joinedAt(Instant.now())
                     .build();
-            clubMemberRepository.save(member);
+            organizationMemberRepository.save(member);
             log.info("Added user {} to CAX Community for college {}", user.getUserId(), collegeName);
         }
     }

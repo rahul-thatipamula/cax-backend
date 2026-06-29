@@ -98,6 +98,10 @@ public class User {
     // CAX Verification details
     private String caxId;
 
+    // Student ID verification submission
+    private String studentIdUrl;
+    private Instant verificationSubmittedAt;
+
     private String appVersion;
     private int buildNumber;
 

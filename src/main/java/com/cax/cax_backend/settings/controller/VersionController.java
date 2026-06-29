@@ -29,6 +29,7 @@ public class VersionController {
         response.put("minRequiredBuildNumber", settings.getMinRequiredBuildNumber());
         response.put("updateMessage", settings.getUpdateMessage() != null ? settings.getUpdateMessage() : "A new version of CAX is available. Please update to continue.");
         response.put("storeUrl", settings.getStoreUrl() != null ? settings.getStoreUrl() : "");
+        response.put("razorpayEnabled", settings.isRazorpayEnabled());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

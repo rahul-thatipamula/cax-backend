@@ -1,18 +1,16 @@
 package com.cax.cax_backend.user.listener;
 
-import com.cax.cax_backend.club.model.ClubJoinRequest;
-import com.cax.cax_backend.club.model.ClubMember;
-import com.cax.cax_backend.club.model.ClubPost;
-import com.cax.cax_backend.club.repository.ClubJoinRequestRepository;
-import com.cax.cax_backend.club.repository.ClubMemberRepository;
-import com.cax.cax_backend.club.repository.ClubPostRepository;
+import com.cax.cax_backend.organization.model.OrganizationJoinRequest;
+import com.cax.cax_backend.organization.model.OrganizationMember;
+import com.cax.cax_backend.organization.model.OrganizationPost;
+import com.cax.cax_backend.organization.repository.OrganizationMemberRepository;
+import com.cax.cax_backend.organization.repository.OrganizationJoinRequestRepository;
+import com.cax.cax_backend.organization.repository.OrganizationPostRepository;
 import com.cax.cax_backend.event.model.EventParticipant;
 import com.cax.cax_backend.event.repository.EventParticipantRepository;
 import com.cax.cax_backend.thought.model.Thought;
 import com.cax.cax_backend.thought.repository.ThoughtRepository;
 import com.cax.cax_backend.notification.repository.NotificationRepository;
-import com.cax.cax_backend.chat.model.ClubMessage;
-import com.cax.cax_backend.chat.repository.ClubMessageRepository;
 import com.cax.cax_backend.user.event.UserProfileUpdatedEvent;
 import com.cax.cax_backend.user.model.User;
 import lombok.RequiredArgsConstructor;
@@ -29,13 +27,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class UserProfileUpdatedListener {
 
-    private final ClubMemberRepository clubMemberRepository;
+    private final OrganizationMemberRepository organizationMemberRepository;
     private final EventParticipantRepository eventParticipantRepository;
-    private final ClubJoinRequestRepository clubJoinRequestRepository;
+    private final OrganizationJoinRequestRepository organizationJoinRequestRepository;
     private final ThoughtRepository thoughtRepository;
-    private final ClubPostRepository clubPostRepository;
+    private final OrganizationPostRepository organizationPostRepository;
     private final NotificationRepository notificationRepository;
-    private final ClubMessageRepository clubMessageRepository;
 
     @Async("taskExecutor")
     @EventListener
@@ -47,10 +44,10 @@ public class UserProfileUpdatedListener {
 
         log.info("Received UserProfileUpdatedEvent. Syncing profile for user: {}", userId);
 
-        // 1. Sync ClubMember records
+        // 1. Sync OrganizationMember records
         try {
-            List<ClubMember> memberships = clubMemberRepository.findByUserId(userId);
-            for (ClubMember member : memberships) {
+            List<OrganizationMember> memberships = organizationMemberRepository.findByUserId(userId);
+            for (OrganizationMember member : memberships) {
                 boolean changed = false;
                 if (updatedName != null && !updatedName.equals(member.getName())) {
                     member.setName(updatedName);
@@ -61,12 +58,12 @@ public class UserProfileUpdatedListener {
                     changed = true;
                 }
                 if (changed) {
-                    clubMemberRepository.save(member);
+                    organizationMemberRepository.save(member);
                 }
             }
-            log.info("Synced {} ClubMember records for user {}", memberships.size(), userId);
+            log.info("Synced {} OrganizationMember records for user {}", memberships.size(), userId);
         } catch (Exception e) {
-            log.error("Failed to sync ClubMember records: ", e);
+            log.error("Failed to sync OrganizationMember records: ", e);
         }
 
         // 2. Sync EventParticipant records
@@ -91,10 +88,10 @@ public class UserProfileUpdatedListener {
             log.error("Failed to sync EventParticipant records: ", e);
         }
 
-        // 3. Sync ClubJoinRequest records
+        // 3. Sync OrganizationJoinRequest records
         try {
-            List<ClubJoinRequest> requests = clubJoinRequestRepository.findByUserId(userId);
-            for (ClubJoinRequest request : requests) {
+            List<OrganizationJoinRequest> requests = organizationJoinRequestRepository.findByUserId(userId);
+            for (OrganizationJoinRequest request : requests) {
                 boolean changed = false;
                 if (updatedName != null && !updatedName.equals(request.getName())) {
                     request.setName(updatedName);
@@ -105,12 +102,12 @@ public class UserProfileUpdatedListener {
                     changed = true;
                 }
                 if (changed) {
-                    clubJoinRequestRepository.save(request);
+                    organizationJoinRequestRepository.save(request);
                 }
             }
-            log.info("Synced {} ClubJoinRequest records for user {}", requests.size(), userId);
+            log.info("Synced {} OrganizationJoinRequest records for user {}", requests.size(), userId);
         } catch (Exception e) {
-            log.error("Failed to sync ClubJoinRequest records: ", e);
+            log.error("Failed to sync OrganizationJoinRequest records: ", e);
         }
 
         // 4. Sync Thought creator info
@@ -163,13 +160,13 @@ public class UserProfileUpdatedListener {
             log.error("Failed to sync Thought comment records: ", e);
         }
 
-        // 6. Sync ClubPost comments info
+        // 6. Sync OrganizationPost comments info
         try {
-            List<ClubPost> postsWithComments = clubPostRepository.findByCommentsUserId(userId);
-            for (ClubPost post : postsWithComments) {
+            List<OrganizationPost> postsWithComments = organizationPostRepository.findByCommentsUserId(userId);
+            for (OrganizationPost post : postsWithComments) {
                 boolean changed = false;
                 if (post.getComments() != null) {
-                    for (ClubPost.Comment comment : post.getComments()) {
+                    for (OrganizationPost.Comment comment : post.getComments()) {
                         if (userId.equals(comment.getUserId())) {
                             if (updatedName != null && !updatedName.equals(comment.getUserName())) {
                                 comment.setUserName(updatedName);
@@ -183,12 +180,12 @@ public class UserProfileUpdatedListener {
                     }
                 }
                 if (changed) {
-                    clubPostRepository.save(post);
+                    organizationPostRepository.save(post);
                 }
             }
-            log.info("Synced {} ClubPost comment records for user {}", postsWithComments.size(), userId);
+            log.info("Synced {} OrganizationPost comment records for user {}", postsWithComments.size(), userId);
         } catch (Exception e) {
-            log.error("Failed to sync ClubPost comment records: ", e);
+            log.error("Failed to sync OrganizationPost comment records: ", e);
         }
 
         // 7. Sync Notification records where this user was the actor
@@ -233,40 +230,6 @@ public class UserProfileUpdatedListener {
             log.info("Synced {} Notification records where user {} was actor", notifications.size(), userId);
         } catch (Exception e) {
             log.error("Failed to sync Notification records: ", e);
-        }
-
-        // 8. Sync ClubMessage sender info and replies
-        try {
-            List<ClubMessage> userMessages = clubMessageRepository.findBySenderId(userId);
-            for (ClubMessage msg : userMessages) {
-                boolean changed = false;
-                if (updatedName != null && !updatedName.equals(msg.getSenderName())) {
-                    msg.setSenderName(updatedName);
-                    changed = true;
-                }
-                if (updatedPicture != null && !updatedPicture.equals(msg.getSenderPicture())) {
-                    msg.setSenderPicture(updatedPicture);
-                    changed = true;
-                }
-                if (changed) {
-                    clubMessageRepository.save(msg);
-                }
-            }
-            log.info("Synced {} ClubMessage sender records for user {}", userMessages.size(), userId);
-            
-            if (!userMessages.isEmpty()) {
-                List<String> messageIds = userMessages.stream().map(ClubMessage::getId).toList();
-                List<ClubMessage> replies = clubMessageRepository.findByReplyToIdIn(messageIds);
-                for (ClubMessage reply : replies) {
-                    if (updatedName != null && !updatedName.equals(reply.getReplyToName())) {
-                        reply.setReplyToName(updatedName);
-                        clubMessageRepository.save(reply);
-                    }
-                }
-                log.info("Synced {} ClubMessage reply-to records for user {}", replies.size(), userId);
-            }
-        } catch (Exception e) {
-            log.error("Failed to sync ClubMessage records: ", e);
         }
     }
 }

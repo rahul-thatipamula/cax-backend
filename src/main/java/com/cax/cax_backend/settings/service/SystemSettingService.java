@@ -41,12 +41,25 @@ public class SystemSettingService {
         return getSystemSetting().isPlayStoreTestingMode();
     }
 
+    public boolean isRazorpayEnabled() {
+        return getSystemSetting().isRazorpayEnabled();
+    }
+
     public SystemSetting setPlayStoreTesting(boolean enabled) {
         SystemSetting setting = getSystemSetting();
         setting.setPlayStoreTestingMode(enabled);
         setting.setUpdatedAt(Instant.now());
         SystemSetting saved = systemSettingRepository.save(setting);
         log.info("Play Store testing mode set to: {}", enabled);
+        return saved;
+    }
+
+    public SystemSetting setRazorpayEnabled(boolean enabled) {
+        SystemSetting setting = getSystemSetting();
+        setting.setRazorpayEnabled(enabled);
+        setting.setUpdatedAt(Instant.now());
+        SystemSetting saved = systemSettingRepository.save(setting);
+        log.info("Razorpay enabled status set to: {}", enabled);
         return saved;
     }
 

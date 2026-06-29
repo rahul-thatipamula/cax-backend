@@ -8,11 +8,12 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import com.cax.cax_backend.club.model.Club;
+import com.cax.cax_backend.organization.model.Organization;
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.event.model.EventParticipant;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
+import com.cax.cax_backend.settings.repository.SettingsRepository;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -26,9 +27,17 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
     private final UserRepository userRepository;
+    private final SettingsRepository settingsRepository;
 
     @Value("${spring.mail.username}")
     private String fromEmail;
+
+    private boolean isEmailEnabled(String userId) {
+        if (userId == null) return true;
+        return settingsRepository.findByUserId(userId)
+                .map(s -> s.isNotificationsEnabled() && s.isEmailNotificationsEnabled())
+                .orElse(true);
+    }
 
     /**
      * Send a professional greeting email to the newly signed up user.
@@ -40,6 +49,10 @@ public class EmailService {
         }
         if (user.isBlocked()) {
             log.info("User {} is blocked. Skipping greeting email.", user.getUserId());
+            return;
+        }
+        if (!isEmailEnabled(user.getUserId())) {
+            log.debug("Email notifications disabled for user {}. Skipping greeting email.", user.getUserId());
             return;
         }
 
@@ -93,6 +106,10 @@ public class EmailService {
             User user = uOpt.get();
             if (user.isBlocked()) {
                 log.info("User associated with {} is blocked. Skipping newsletter confirmation.", toEmail);
+                return;
+            }
+            if (!isEmailEnabled(user.getUserId())) {
+                log.debug("Email notifications disabled for user {}. Skipping newsletter confirmation.", user.getUserId());
                 return;
             }
         }
@@ -160,6 +177,10 @@ public class EmailService {
             User user = uOpt.get();
             if (user.isBlocked()) {
                 log.info("Participant {} is blocked. Skipping registration status email.", participant.getEmail());
+                return;
+            }
+            if (!isEmailEnabled(user.getUserId())) {
+                log.debug("Email notifications disabled for user {}. Skipping registration status email.", user.getUserId());
                 return;
             }
         }
@@ -254,7 +275,7 @@ public class EmailService {
      * Send a professional club leadership assignment email.
      */
     @Async("taskExecutor")
-    public void sendClubLeaderAssignmentEmail(User user, Club club, String role) {
+    public void sendOrganizationLeaderAssignmentEmail(User user, Organization organization, String role) {
         if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
             log.warn("Cannot send club leadership email: user or email is null/empty");
             return;
@@ -263,10 +284,14 @@ public class EmailService {
             log.info("User {} is blocked. Skipping club leadership email.", user.getUserId());
             return;
         }
+        if (!isEmailEnabled(user.getUserId())) {
+            log.debug("Email notifications disabled for user {}. Skipping club leadership email.", user.getUserId());
+            return;
+        }
 
         String to = user.getEmail();
         String name = user.getName() != null ? user.getName() : "Student";
-        String clubName = club != null ? club.getName() : "the club";
+        String clubName = organization != null ? organization.getName() : "the club";
         String subject = String.format("Congratulations! You've been assigned as %s of %s 🎉", role, clubName);
 
         String htmlContent = String.format(
@@ -337,6 +362,10 @@ public class EmailService {
         }
         if (user.isBlocked()) {
             log.info("User {} is blocked. Skipping Super Student promotion email.", user.getUserId());
+            return;
+        }
+        if (!isEmailEnabled(user.getUserId())) {
+            log.debug("Email notifications disabled for user {}. Skipping Super Student promotion email.", user.getUserId());
             return;
         }
 
@@ -416,6 +445,10 @@ public class EmailService {
         }
         if (user.isBlocked()) {
             log.info("User {} is blocked. Skipping Super Student demotion email.", user.getUserId());
+            return;
+        }
+        if (!isEmailEnabled(user.getUserId())) {
+            log.debug("Email notifications disabled for user {}. Skipping Super Student demotion email.", user.getUserId());
             return;
         }
 
