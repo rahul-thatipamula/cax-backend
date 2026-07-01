@@ -33,10 +33,31 @@ public class RippleService {
     private final UserService userService;
     private final NotificationService notificationService;
 
-    public List<Ripple> getRipples(String organizationId, int page, int size) {
-        // Verify organization exists
-        organizationRepository.findById(organizationId)
+    public List<Ripple> getRipples(String userId, String organizationId, int page, int size) {
+        Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Organization", organizationId));
+
+        // Enforce College Isolation
+        User user = userService.getUserByUserId(userId);
+        if (user.getRole() != com.cax.cax_backend.common.enums.UserRole.ADMIN) {
+            if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null
+                    || !organization.getCollegeId().equals(user.getCollegeDetails().getCollegeId())) {
+                throw new BusinessException.BadRequestException("You cannot access announcements from another college.");
+            }
+
+            // Enforce organization membership check
+            boolean isMember = false;
+            if (userId.equals(organization.getPresidentId()) || userId.equals(organization.getVicePresidentId())) {
+                isMember = true;
+            } else {
+                isMember = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userId).isPresent();
+            }
+
+            if (!isMember) {
+                throw new BusinessException.BadRequestException("Access denied: You must be a member of the organization to view its announcements.");
+            }
+        }
+
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
         return rippleRepository.findByOrganizationIdOrderByCreatedAtDesc(organizationId, pageable);
     }

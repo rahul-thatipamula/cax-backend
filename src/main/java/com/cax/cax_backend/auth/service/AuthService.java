@@ -35,6 +35,12 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class AuthService {
 
+    // Owner/developer account — bypasses the academic-email-domain requirement at login and
+    // is auto-promoted to ADMIN on every login. Scoped to this single email only; every other
+    // account still goes through the normal college-domain verification and role assignment.
+    // TODO: move to environment config (tracked in docs/SECURITY_AUDIT_2026-06-23.md, open item #1).
+    private static final String OWNER_BYPASS_EMAIL = "rahulthatipamula97@gmail.com";
+
     private final UserRepository userRepository;
     private final CollegeRepository collegeRepository;
     private final JwtUtil jwtUtil;
@@ -88,7 +94,16 @@ public class AuthService {
                     .or(() -> userRepository.findByEmail(finalEmail))
                     .orElse(null);
 
-            boolean isAdmin = user != null && user.getRole() == UserRole.ADMIN;
+            if (user != null && user.getName() != null) {
+                try {
+                    user.setName(EncryptionUtils.decrypt(user.getName()));
+                } catch (Exception e) {
+                    log.warn("Failed to decrypt user name on load: {}", e.getMessage());
+                }
+            }
+
+            boolean isOwnerAccount = OWNER_BYPASS_EMAIL.equalsIgnoreCase(email);
+            boolean isAdmin = (user != null && user.getRole() == UserRole.ADMIN) || isOwnerAccount;
 
             boolean isPersonalDomain = isPersonalEmailDomain(domain);
 
@@ -111,11 +126,13 @@ public class AuthService {
             boolean isNewUser = false;
             if (user == null) {
                 isNewUser = true;
+                String initialName = name != null ? name : email.split("@")[0];
                 User.UserBuilder userBuilder = User.builder()
                         .userId(uid)
                         .googleId(uid)
                         .email(email)
-                        .name(name != null ? name : email.split("@")[0])
+                        .name(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(initialName))
+                        .displayName(generateUniqueNickname(email, initialName))
                         .picture(picture)
                         .role(UserRole.STUDENT)
                         .acceptedTerms(false)
@@ -130,6 +147,9 @@ public class AuthService {
                     log.info("Auto-assigned college '{}' to new user: {}", matchedCollege.getCollegeName(), user.getUserId());
                 }
                 user = userRepository.save(user);
+                if (user.getName() != null) {
+                    user.setName(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getName()));
+                }
                 log.info("New user created: {}", uid);
                 eventPublisher.publishEvent(new UserSignupEvent(this, user));
                 if (collegeAssigned) {
@@ -150,21 +170,48 @@ public class AuthService {
 
                 healPlainTextEncryption(user);
 
+                if (user.getDisplayName() == null || user.getDisplayName().isEmpty()) {
+                    user.setDisplayName(generateUniqueNickname(user.getEmail(), user.getName()));
+                }
+
                 user.setOnline(true);
                 user.setLastLoginAt(Instant.now());
                 user.setLastSeenAt(Instant.now());
                 user.setUpdatedAt(Instant.now());
+                
+                if (user.getName() != null) {
+                    user.setName(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(user.getName()));
+                }
                 user = userRepository.save(user);
+                if (user.getName() != null) {
+                    user.setName(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getName()));
+                }
+                
                 log.info("Existing user logged in: {}", user.getUserId());
                 if (collegeHealed) {
                     eventPublisher.publishEvent(new CollegeSelectedEvent(this, user));
                 }
             }
 
+            // Owner account: persist ADMIN role so every downstream check that reads
+            // user.getRole() directly (not just the JWT's isAdmin claim) treats this account
+            // as admin consistently, on this and every future login.
+            if (isOwnerAccount && user.getRole() != UserRole.ADMIN) {
+                user.setRole(UserRole.ADMIN);
+                user = userRepository.save(user);
+                log.info("Owner account {} auto-promoted to ADMIN role on login", user.getUserId());
+            }
+
             // Ensure CAX ID is assigned immediately on every login
             if (user.isIdVerified() && (user.getCaxId() == null || user.getCaxId().isEmpty())) {
                 user.setCaxId(generateUniqueCaxId());
+                if (user.getName() != null) {
+                    user.setName(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(user.getName()));
+                }
                 user = userRepository.save(user);
+                if (user.getName() != null) {
+                    user.setName(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getName()));
+                }
                 log.info("CAX ID generated for user {} on login", user.getUserId());
             }
 
@@ -180,14 +227,21 @@ public class AuthService {
                 );
             }
 
-            String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+            String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess, user.getCreatedAt());
             String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
 
             if (user.getRefreshTokens() == null) {
                 user.setRefreshTokens(new ArrayList<>());
             }
             user.getRefreshTokens().add(EncryptionUtils.hashSHA256(refreshToken));
+            
+            if (user.getName() != null) {
+                user.setName(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(user.getName()));
+            }
             userRepository.save(user);
+            if (user.getName() != null) {
+                user.setName(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getName()));
+            }
 
             Map<String, String> redirectInfo = determineRedirect(user);
 
@@ -217,6 +271,13 @@ public class AuthService {
         String userId = jwtUtil.extractUserId(token);
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(AuthException.UserNotFoundException::new);
+        if (user.getName() != null) {
+            try {
+                user.setName(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getName()));
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
 
         String email = user.getEmail() != null ? user.getEmail().toLowerCase().trim() : "";
         int atIndex = email.indexOf('@');
@@ -257,8 +318,28 @@ public class AuthService {
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(AuthException.UserNotFoundException::new);
 
+        if (user.getName() != null) {
+            try {
+                user.setName(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getName()));
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
+
         if (updates.containsKey("name") && updates.get("name") != null) {
-            user.setName((String) updates.get("name"));
+            String newNickname = ((String) updates.get("name")).trim();
+            if (!com.cax.cax_backend.common.util.PseudonymUtils.isValidNickname(newNickname)) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException(
+                        "Nickname must be 8-16 characters and contain only letters, numbers, _, and .");
+            }
+            if (com.cax.cax_backend.common.util.ProfanityFilter.isOffensive(newNickname)) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("Inappropriate nickname detected");
+            }
+            java.util.Optional<User> existing = userRepository.findByDisplayNameIgnoreCase(newNickname);
+            if (existing.isPresent() && !existing.get().getUserId().equals(userId)) {
+                throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("Nickname is already taken");
+            }
+            user.setDisplayName(newNickname);
         }
         if (updates.containsKey("picture") && updates.get("picture") != null) {
             user.setPicture((String) updates.get("picture"));
@@ -278,7 +359,13 @@ public class AuthService {
         // Premium fields are server-controlled only — never accept from client
 
         user.setUpdatedAt(Instant.now());
+        if (user.getName() != null) {
+            user.setName(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(user.getName()));
+        }
         user = userRepository.save(user);
+        if (user.getName() != null) {
+            user.setName(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getName()));
+        }
         log.info("User profile updated for: {}", userId);
         eventPublisher.publishEvent(new UserProfileUpdatedEvent(this, user));
         return user;
@@ -317,7 +404,7 @@ public class AuthService {
                 });
 
         boolean hasElevatedAccess = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
-        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess, user.getCreatedAt());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
 
         if (user.getRefreshTokens() == null) {
@@ -397,7 +484,7 @@ public class AuthService {
             }
 
             boolean hasElevatedAccess = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
-            String newAccessToken = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+            String newAccessToken = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess, user.getCreatedAt());
             String newRefreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
 
             user.getRefreshTokens().add(EncryptionUtils.hashSHA256(newRefreshToken));
@@ -520,7 +607,7 @@ public class AuthService {
         }
 
         boolean hasElevatedAccess = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
-        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
+        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess, user.getCreatedAt());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
 
         if (user.getRefreshTokens() == null) {
@@ -828,5 +915,34 @@ public class AuthService {
         } catch (Exception e) {
             throw new AuthException.InvalidTokenException("Google ID token signature verification failed");
         }
+    }
+
+    private String generateUniqueNickname(String email, String name) {
+        String letters = "abcdefghijklmnopqrstuvwxyz";
+        String digits = "0123456789";
+        String all = letters + digits;
+        java.util.Random rnd = new java.util.Random();
+
+        String nickname;
+        do {
+            int length = 8 + rnd.nextInt(5); // 8–12 chars
+            char[] chars = new char[length];
+            // Guarantee at least 2 letters and 2 digits
+            chars[0] = letters.charAt(rnd.nextInt(letters.length()));
+            chars[1] = letters.charAt(rnd.nextInt(letters.length()));
+            chars[2] = digits.charAt(rnd.nextInt(digits.length()));
+            chars[3] = digits.charAt(rnd.nextInt(digits.length()));
+            for (int i = 4; i < length; i++) {
+                chars[i] = all.charAt(rnd.nextInt(all.length()));
+            }
+            // Fisher-Yates shuffle
+            for (int i = length - 1; i > 0; i--) {
+                int j = rnd.nextInt(i + 1);
+                char tmp = chars[i]; chars[i] = chars[j]; chars[j] = tmp;
+            }
+            nickname = new String(chars);
+        } while (userRepository.existsByDisplayName(nickname));
+
+        return nickname;
     }
 }

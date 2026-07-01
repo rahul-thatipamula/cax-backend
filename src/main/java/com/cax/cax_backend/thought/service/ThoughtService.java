@@ -88,7 +88,7 @@ public class ThoughtService {
 
         Thought thought = Thought.builder()
                 .userId(userId)
-                .creatorName(user.getName())
+                .creatorName(user.getThoughtsDisplayName())
                 .creatorPicture(user.getPicture())
                 .creatorVerified(user.isIdVerified())
                 .collegeId(user.getCollegeDetails().getCollegeId())
@@ -227,7 +227,7 @@ public class ThoughtService {
         Thought.Comment comment = Thought.Comment.builder()
                 .id(UUID.randomUUID().toString())
                 .userId(userId)
-                .userName(user.getName())
+                .userName(user.getThoughtsDisplayName())
                 .userPicture(user.getPicture())
                 .text(text.trim())
                 .createdAt(Instant.now())

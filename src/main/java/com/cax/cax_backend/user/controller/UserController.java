@@ -32,26 +32,63 @@ public class UserController {
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<User>>> searchUsers(
             @RequestParam String query,
-            @RequestParam(required = false) String collegeId) {
-        return ResponseEntity.ok(ApiResponse.success(userService.searchUsers(query, collegeId)));
+            @RequestParam(required = false) String collegeId,
+            Authentication auth) {
+        String callerId = getCallerId(auth);
+        boolean isSysAdmin = isCallerAdmin(auth);
+        boolean isAdmin = isSysAdmin || isCallerSuperStudent(auth);
+        
+        if (!isSysAdmin && callerId != null) {
+            User caller = userService.getUserByUserId(callerId);
+            if (caller.getCollegeDetails() != null) {
+                collegeId = caller.getCollegeDetails().getCollegeId();
+            } else {
+                collegeId = "no_college_matched";
+            }
+        }
+        
+        List<User> users = userService.searchUsers(query, collegeId);
+        return ResponseEntity.ok(ApiResponse.success(sanitizeUsersForPublic(users, callerId, isAdmin)));
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<User>>> getAllUsers() {
-        return ResponseEntity.ok(ApiResponse.success(userService.getAllUsers()));
+    public ResponseEntity<ApiResponse<List<User>>> getAllUsers(Authentication auth) {
+        String callerId = getCallerId(auth);
+        boolean isAdmin = isCallerAdmin(auth) || isCallerSuperStudent(auth);
+        List<User> users = userService.getAllUsers();
+        return ResponseEntity.ok(ApiResponse.success(sanitizeUsersForPublic(users, callerId, isAdmin)));
     }
 
     @GetMapping("/superstudents")
-    public ResponseEntity<ApiResponse<List<User>>> getSuperStudents(@RequestParam String collegeId) {
-        return ResponseEntity.ok(ApiResponse.success(userService.getSuperStudentsByCollegeId(collegeId)));
+    public ResponseEntity<ApiResponse<List<User>>> getSuperStudents(
+            @RequestParam(required = false) String collegeId,
+            Authentication auth) {
+        String callerId = getCallerId(auth);
+        boolean isSysAdmin = isCallerAdmin(auth);
+        boolean isAdmin = isSysAdmin || isCallerSuperStudent(auth);
+        
+        if (!isSysAdmin && callerId != null) {
+            User caller = userService.getUserByUserId(callerId);
+            if (caller.getCollegeDetails() != null) {
+                collegeId = caller.getCollegeDetails().getCollegeId();
+            } else {
+                collegeId = "no_college_matched";
+            }
+        }
+        
+        List<User> users = userService.getSuperStudentsByCollegeId(collegeId);
+        return ResponseEntity.ok(ApiResponse.success(sanitizeUsersForPublic(users, callerId, isAdmin)));
     }
 
     @GetMapping("/{userId}/profile")
-    public ResponseEntity<ApiResponse<User>> getUserProfile(@PathVariable String userId) {
-        return ResponseEntity.ok(ApiResponse.success(userService.getUserByUserId(userId)));
+    public ResponseEntity<ApiResponse<User>> getUserProfile(
+            @PathVariable String userId,
+            Authentication auth) {
+        String callerId = getCallerId(auth);
+        boolean isAdmin = isCallerAdmin(auth) || isCallerSuperStudent(auth);
+        User user = userService.getUserByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.success(sanitizeUserForPublic(user, callerId, isAdmin)));
     }
-
-
 
     @PostMapping("/{userId}/block")
     @AdminActivityLog(action = "Block User", resourceIdParam = "userId")
@@ -65,8 +102,11 @@ public class UserController {
     }
 
     @GetMapping("/premium")
-    public ResponseEntity<ApiResponse<List<User>>> getActivePremiumUsers() {
-        return ResponseEntity.ok(ApiResponse.success(userService.getActivePremiumUsers()));
+    public ResponseEntity<ApiResponse<List<User>>> getActivePremiumUsers(Authentication auth) {
+        String callerId = getCallerId(auth);
+        boolean isAdmin = isCallerAdmin(auth) || isCallerSuperStudent(auth);
+        List<User> users = userService.getActivePremiumUsers();
+        return ResponseEntity.ok(ApiResponse.success(sanitizeUsersForPublic(users, callerId, isAdmin)));
     }
 
     @PostMapping("/{userId}/role")
@@ -104,5 +144,65 @@ public class UserController {
         if (!Boolean.TRUE.equals(isAdmin)) {
             throw new com.cax.cax_backend.common.exception.AuthException.AdminOnlyException();
         }
+    }
+
+    private User sanitizeUserForPublic(User user, String callerId, boolean isAdmin) {
+        if (user == null) return null;
+        
+        String decryptedName = null;
+        try {
+            if (user.getName() != null) {
+                decryptedName = com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getName());
+            }
+        } catch (Exception e) {
+            decryptedName = user.getName();
+        }
+
+        if (isAdmin || user.getUserId().equals(callerId)) {
+            user.setName(decryptedName);
+            return user;
+        }
+
+        user.setName(user.getThoughtsDisplayName());
+        user.setEmail(null);
+
+        return user;
+    }
+
+    private List<User> sanitizeUsersForPublic(List<User> users, String callerId, boolean isAdmin) {
+        if (users == null) return null;
+        users.forEach(u -> sanitizeUserForPublic(u, callerId, isAdmin));
+        return users;
+    }
+
+    private boolean isCallerAdmin(Authentication auth) {
+        if (auth == null || auth.getCredentials() == null) {
+            return false;
+        }
+        if (auth.getCredentials() instanceof Claims) {
+            Claims claims = (Claims) auth.getCredentials();
+            Boolean isAdmin = claims.get("isAdmin", Boolean.class);
+            return Boolean.TRUE.equals(isAdmin);
+        }
+        return false;
+    }
+
+    private boolean isCallerSuperStudent(Authentication auth) {
+        String callerId = getCallerId(auth);
+        if (callerId == null) {
+            return false;
+        }
+        try {
+            User caller = userService.getUserByUserId(callerId);
+            return caller != null && caller.getRole() == com.cax.cax_backend.common.enums.UserRole.SUPER_STUDENT;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String getCallerId(Authentication auth) {
+        return (auth != null && auth.isAuthenticated() && auth.getPrincipal() != null) 
+                ? (String) auth.getPrincipal() 
+                : null;
     }
 }

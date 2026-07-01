@@ -56,6 +56,7 @@ public class User {
     @Builder.Default
     private double totalCoinsSpent = 0.0;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String fcmToken;
 
     private Instant lastSeenFeedAt;
@@ -71,6 +72,7 @@ public class User {
 
     @Builder.Default
     private boolean twoFactorEnabled = false;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String twoFactorSecret;
 
     @Builder.Default
@@ -106,6 +108,15 @@ public class User {
     private int buildNumber;
 
     @Builder.Default
-    private boolean waterReminderSubscribed = true;
+    private boolean waterReminderSubscribed = false;
     private Instant lastWaterReminderSentAt;
+
+    private String displayName;
+
+    public String getThoughtsDisplayName() {
+        if (this.displayName != null && !this.displayName.isBlank()) {
+            return this.displayName;
+        }
+        return com.cax.cax_backend.common.util.PseudonymUtils.generatePseudonym(this.userId);
+    }
 }

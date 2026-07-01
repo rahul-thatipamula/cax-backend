@@ -29,10 +29,15 @@ public class RippleController {
 
     @GetMapping("/{organizationId}/ripples")
     public ResponseEntity<ApiResponse<List<Ripple>>> getRipples(
+            Authentication auth,
             @PathVariable String organizationId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size) {
-        List<Ripple> ripples = rippleService.getRipples(organizationId, page, size);
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        List<Ripple> ripples = rippleService.getRipples(userId, organizationId, page, size);
         return ResponseEntity.ok(ApiResponse.success("Ripples fetched successfully", ripples));
     }
 

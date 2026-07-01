@@ -633,7 +633,7 @@ public class EventService {
                 .registeredAt(Instant.now())
                 .build();
 
-        return eventParticipantRepository.save(participant);
+        return decryptParticipant(eventParticipantRepository.save(participant));
     }
 
     private String trimToNull(Object value) {
@@ -677,7 +677,7 @@ public class EventService {
                 .timestamp(Instant.now())
                 .build());
 
-        return eventParticipantRepository.save(participant);
+        return decryptParticipant(eventParticipantRepository.save(participant));
     }
 
     public EventParticipant verifyPayment(String organizerId, String eventId, String participantId, boolean approved) {
@@ -744,7 +744,7 @@ public class EventService {
         } catch (Exception e) {
             log.error("Failed to publish EventRegistrationReviewedEvent for participant: {}", participantId, e);
         }
-        return saved;
+        return decryptParticipant(saved);
     }
 
     public List<EventParticipant> getParticipants(String userId, String eventId) {
@@ -752,17 +752,7 @@ public class EventService {
         verifyEventManager(userId, event);
 
         List<EventParticipant> participants = eventParticipantRepository.findByEventId(eventId);
-        participants.forEach(p -> {
-            if (p.getIdCardNumber() != null) p.setIdCardNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getIdCardNumber()));
-            if (p.getUtrNumber() != null) p.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getUtrNumber()));
-            if (p.getPaymentHistory() != null) {
-                p.getPaymentHistory().forEach(h -> {
-                    if (h.getUtrNumber() != null) {
-                        h.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(h.getUtrNumber()));
-                    }
-                });
-            }
-        });
+        participants.forEach(this::decryptParticipant);
         return participants;
     }
 
@@ -936,7 +926,7 @@ public class EventService {
             log.warn("Could not capture check-in operator identity for event {}", eventId, e);
         }
 
-        return eventParticipantRepository.save(participant);
+        return decryptParticipant(eventParticipantRepository.save(participant));
     }
 
     public Map<String, Object> getParticipantDetailsByCode(String callerId, String eventId, String ticketCode) {
@@ -951,7 +941,7 @@ public class EventService {
         }
 
         Map<String, Object> details = new HashMap<>();
-        details.put("participant", participant);
+        details.put("participant", decryptParticipant(participant));
         return details;
     }
 
@@ -973,7 +963,7 @@ public class EventService {
         participant.setSuspicious(suspicious);
         participant.setSuspiciousNote(note);
 
-        return eventParticipantRepository.save(participant);
+        return decryptParticipant(eventParticipantRepository.save(participant));
     }
 
     public boolean hasEventManagePermission(String userId, Event event) {
@@ -1252,7 +1242,32 @@ public class EventService {
                 .timestamp(Instant.now())
                 .build());
 
-        return eventParticipantRepository.save(participant);
+        return decryptParticipant(eventParticipantRepository.save(participant));
+    }
+
+    private EventParticipant decryptParticipant(EventParticipant p) {
+        if (p == null) return null;
+        if (p.getName() != null) {
+            try {
+                p.setName(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getName()));
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
+        if (p.getIdCardNumber() != null) {
+            p.setIdCardNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getIdCardNumber()));
+        }
+        if (p.getUtrNumber() != null) {
+            p.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(p.getUtrNumber()));
+        }
+        if (p.getPaymentHistory() != null) {
+            p.getPaymentHistory().forEach(h -> {
+                if (h.getUtrNumber() != null) {
+                    h.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.decrypt(h.getUtrNumber()));
+                }
+            });
+        }
+        return p;
     }
 
 }

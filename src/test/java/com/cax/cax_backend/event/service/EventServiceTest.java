@@ -69,6 +69,7 @@ class EventServiceTest {
 
     @BeforeEach
     void setUp() {
+        com.cax.cax_backend.common.util.EncryptionUtils.init("testKey1234567890");
         lenient().when(systemSettingService.isRazorpayEnabled()).thenReturn(true);
 
         defaultOrganization = Organization.builder()
@@ -394,8 +395,6 @@ class EventServiceTest {
         event.setId(EVENT_ID);
         event.setRegistrationEndDate(Instant.now().minus(1, ChronoUnit.DAYS)); // deadline passed yesterday
         when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(organizationService.getOrganizationById(CLUB_ID)).thenReturn(defaultOrganization);
-        when(eventParticipantRepository.existsByEventIdAndUserId(EVENT_ID, USER_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> eventService.registerForEvent(USER_ID, EVENT_ID, null))
                 .isInstanceOf(BusinessException.BadRequestException.class)
@@ -408,8 +407,6 @@ class EventServiceTest {
         event.setId(EVENT_ID);
         event.setStatus("CANCELLED");
         when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(organizationService.getOrganizationById(CLUB_ID)).thenReturn(defaultOrganization);
-        when(eventParticipantRepository.existsByEventIdAndUserId(EVENT_ID, USER_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> eventService.registerForEvent(USER_ID, EVENT_ID, null))
                 .isInstanceOf(BusinessException.BadRequestException.class)

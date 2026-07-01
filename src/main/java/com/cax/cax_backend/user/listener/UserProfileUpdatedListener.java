@@ -40,6 +40,7 @@ public class UserProfileUpdatedListener {
         User user = event.getUser();
         String userId = user.getUserId();
         String updatedName = user.getName();
+        String updatedNickname = user.getThoughtsDisplayName();
         String updatedPicture = user.getPicture();
 
         log.info("Received UserProfileUpdatedEvent. Syncing profile for user: {}", userId);
@@ -115,8 +116,8 @@ public class UserProfileUpdatedListener {
             List<Thought> posts = thoughtRepository.findByUserId(userId);
             for (Thought post : posts) {
                 boolean changed = false;
-                if (updatedName != null && !updatedName.equals(post.getCreatorName())) {
-                    post.setCreatorName(updatedName);
+                if (updatedNickname != null && !updatedNickname.equals(post.getCreatorName())) {
+                    post.setCreatorName(updatedNickname);
                     changed = true;
                 }
                 if (updatedPicture != null && !updatedPicture.equals(post.getCreatorPicture())) {
@@ -140,8 +141,8 @@ public class UserProfileUpdatedListener {
                 if (post.getComments() != null) {
                     for (Thought.Comment comment : post.getComments()) {
                         if (userId.equals(comment.getUserId())) {
-                            if (updatedName != null && !updatedName.equals(comment.getUserName())) {
-                                comment.setUserName(updatedName);
+                            if (updatedNickname != null && !updatedNickname.equals(comment.getUserName())) {
+                                comment.setUserName(updatedNickname);
                                 changed = true;
                             }
                             if (updatedPicture != null && !updatedPicture.equals(comment.getUserPicture())) {
@@ -203,20 +204,20 @@ public class UserProfileUpdatedListener {
                 
                 if (data != null && data.containsKey("actorName")) {
                     String oldName = data.get("actorName");
-                    if (updatedName != null && !updatedName.equals(oldName)) {
+                    if (updatedNickname != null && !updatedNickname.equals(oldName)) {
                         // Update actorName in data map
-                        data.put("actorName", updatedName);
+                        data.put("actorName", updatedNickname);
                         
-                        // Update body text replacing oldName with updatedName
+                        // Update body text replacing oldName with updatedNickname
                         String body = notif.getBody();
                         if (body != null && oldName != null && body.contains(oldName)) {
-                            notif.setBody(body.replace(oldName, updatedName));
+                            notif.setBody(body.replace(oldName, updatedNickname));
                         }
                         
-                        // Update title text replacing oldName with updatedName
+                        // Update title text replacing oldName with updatedNickname
                         String title = notif.getTitle();
                         if (title != null && oldName != null && title.contains(oldName)) {
-                            notif.setTitle(title.replace(oldName, updatedName));
+                            notif.setTitle(title.replace(oldName, updatedNickname));
                         }
                         
                         changed = true;

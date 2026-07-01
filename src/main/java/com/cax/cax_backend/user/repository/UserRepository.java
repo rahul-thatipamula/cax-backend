@@ -16,6 +16,7 @@ public interface UserRepository extends MongoRepository<User, String>, CustomUse
     List<User> findByCollegeDetails_CollegeIdAndRoleAndBlocked(String collegeId, UserRole role, boolean blocked);
     List<User> findByPremiumExpiresAtAfterAndBlocked(java.time.Instant now, boolean blocked);
     boolean existsByCaxId(String caxId);
+    java.util.Optional<User> findByCaxId(String caxId);
 
     @Query("{ 'isOnline': true, '$or': [ { 'lastSeenAt': { '$lt': ?0 } }, { 'lastSeenAt': null } ] }")
     List<User> findStaleOnlineUsers(java.time.Instant threshold);
@@ -31,4 +32,8 @@ public interface UserRepository extends MongoRepository<User, String>, CustomUse
 
     @Query("{ 'waterReminderSubscribed': true, 'blocked': false, 'fcmToken': { $exists: true, $ne: null }, '$or': [ { 'lastWaterReminderSentAt': { '$exists': false } }, { 'lastWaterReminderSentAt': null }, { 'lastWaterReminderSentAt': { '$lt': ?0 } } ] }")
     List<User> findUsersForWaterReminder(java.time.Instant threshold);
+
+    boolean existsByDisplayName(String displayName);
+    java.util.Optional<User> findByDisplayNameIgnoreCase(String displayName);
+    List<User> findByDisplayNameContainingIgnoreCaseOrEmailContainingIgnoreCase(String displayName, String email);
 }
