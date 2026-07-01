@@ -8,7 +8,9 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -32,16 +34,28 @@ public class JwtUtil {
     }
 
     public String generateToken(String userId, String email, String role, boolean isAdmin) {
+        return generateToken(userId, email, role, isAdmin, null);
+    }
+
+    /** accountCreatedAt lets rate-limit auto-scaling (RateLimitAutoScaler) tell established
+     *  accounts apart from freshly created ones, without an extra DB lookup per request —
+     *  see RateLimitRule/AdaptiveRateLimiter for why that distinction matters (Sybil resistance:
+     *  a burst of brand-new accounts shouldn't be able to look like a legitimate traffic surge). */
+    public String generateToken(String userId, String email, String role, boolean isAdmin, Instant accountCreatedAt) {
         long exp = isAdmin ? adminExpiration : expiration;
+        Map<String, Object> claims = new HashMap<>(Map.of(
+                "userId", userId,
+                "email", email,
+                "role", role,
+                "isAdmin", isAdmin,
+                "type", "access"
+        ));
+        if (accountCreatedAt != null) {
+            claims.put("accountCreatedAt", accountCreatedAt.toEpochMilli());
+        }
         return Jwts.builder()
                 .subject(userId)
-                .claims(Map.of(
-                        "userId", userId,
-                        "email", email,
-                        "role", role,
-                        "isAdmin", isAdmin,
-                        "type", "access"
-                ))
+                .claims(claims)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + exp))
                 .signWith(key)
