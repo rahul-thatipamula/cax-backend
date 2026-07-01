@@ -41,10 +41,16 @@ public class SecurityConfig {
                                 "/api/colleges",
                                 "/api/newsletter/subscribe",
                                 "/api/ads/*/click",
+                                // Bingo: read-only public endpoints (game info, card view, leaderboard)
+                                "/api/games/bingo/public/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        // Bingo: org-scoped game list (public read — no auth needed for the org games page)
+                        .requestMatchers("/api/games/bingo/org/**").permitAll()
+                        // Bingo player write endpoints require a valid auth token
+                        .requestMatchers("/api/games/bingo/player/**").authenticated()
                         // All other endpoints require authentication
                         .anyRequest().authenticated()
                 )

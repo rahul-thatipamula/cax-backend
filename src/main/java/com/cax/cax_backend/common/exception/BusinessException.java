@@ -52,6 +52,12 @@ public class BusinessException {
         }
     }
 
+    public static class ForbiddenException extends BaseException {
+        public ForbiddenException(String message) {
+            super(message, 403, ErrorCodes.FORBIDDEN);
+        }
+    }
+
     public static class PurchaseVerificationFailedException extends BaseException {
         public PurchaseVerificationFailedException() {
             super("Purchase verification failed", 400, ErrorCodes.PURCHASE_VERIFICATION_FAILED);

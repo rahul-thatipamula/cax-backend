@@ -93,6 +93,45 @@ public class OrganizationController {
         return ResponseEntity.ok(ApiResponse.success(myOrganizations));
     }
 
+    /** Returns orgs where the caller is President or Vice President — used by the org game-management portal. */
+    @GetMapping("/my-leadership")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getMyLeadership(Authentication auth) {
+        String userId = (String) auth.getPrincipal();
+        List<OrganizationMember> allMemberships = organizationService.getUserOrganizationMemberships(userId);
+
+        List<OrganizationMember> leaderMemberships = allMemberships.stream()
+                .filter(m -> "President".equalsIgnoreCase(m.getRole()) || "Vice President".equalsIgnoreCase(m.getRole()))
+                .toList();
+
+        if (leaderMemberships.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.success(List.of()));
+        }
+
+        List<String> orgIds = leaderMemberships.stream()
+                .map(OrganizationMember::getOrganizationId)
+                .filter(id -> id != null && !id.isBlank())
+                .toList();
+        List<Organization> orgs = organizationService.getOrganizationsByIds(orgIds);
+
+        List<Map<String, Object>> result = leaderMemberships.stream()
+                .map(m -> {
+                    Organization org = orgs.stream()
+                            .filter(o -> o.getId().equals(m.getOrganizationId()))
+                            .findFirst().orElse(null);
+                    if (org == null) return null;
+                    java.util.Map<String, Object> item = new java.util.HashMap<>();
+                    item.put("organizationId", org.getId());
+                    item.put("organizationName", org.getName());
+                    item.put("logo", org.getLogo() != null ? org.getLogo() : "");
+                    item.put("role", m.getRole());
+                    return item;
+                })
+                .filter(item -> item != null)
+                .toList();
+
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     @GetMapping("/{organizationId}")
     public ResponseEntity<ApiResponse<OrganizationDetailResponse>> getClubDetails(Authentication auth, @PathVariable String organizationId) {
         String userId = (String) auth.getPrincipal();
