@@ -506,3 +506,7 @@ Improved performance., storeUrl=) | STATUS: SUCCESS
 [2026-07-01 16:03:19] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
 [2026-07-01 16:03:20] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
 [2026-07-01 16:03:20] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-01 18:52:28] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=21.0.0, minRequiredVersion=21.0.0, latestBuildNumber=70, minRequiredBuildNumber=70, updateMessage=What's new in this update: 
+
+• Introduced CAX Bingo – clubs can now create and play networking bingo games during events to help attendees connect. • Enhanced the Home screen with UI improvements and bug fixes for a smoother experience. • Introduced usernames, making it easier for others to identify and connect with you. </en-US>, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-07-01 18:52:30] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS

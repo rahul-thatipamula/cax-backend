@@ -224,17 +224,13 @@ public class BingoGameService {
         List<BingoPlayerCard> cards = cardRepository.findByGameCode(gameCode);
 
         Map<String, Long> countsByCaxId = countSignerUses(cards);
-        Map<String, String> namesByCaxId = new HashMap<>();
-        for (BingoPlayerCard card : cards) {
-            for (BingoPlayerCard.CellMark mark : card.getMarkedCells()) {
-                namesByCaxId.putIfAbsent(mark.getSignerCaxId(), mark.getSignerName());
-            }
-        }
 
         return countsByCaxId.entrySet().stream()
                 .map(e -> SignerUsageStat.builder()
                         .caxId(e.getKey())
-                        .name(namesByCaxId.get(e.getKey()))
+                        .name(userRepository.findByCaxId(e.getKey())
+                                .map(User::getThoughtsDisplayName)
+                                .orElse(null))
                         .count(e.getValue())
                         .maxAllowed(game.getMaxSignerUsesPerGame())
                         .build())
