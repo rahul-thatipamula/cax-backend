@@ -47,8 +47,9 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
-                        // Bingo: org-scoped game list (public read — no auth needed for the org games page)
-                        .requestMatchers("/api/games/bingo/org/**").permitAll()
+                        // Bingo: org-scoped game list is leader-only (role enforced in the
+                        // service) — it exposes the full prompt pool, so it requires auth.
+                        .requestMatchers("/api/games/bingo/org/**").authenticated()
                         // Bingo player write endpoints require a valid auth token
                         .requestMatchers("/api/games/bingo/player/**").authenticated()
                         // All other endpoints require authentication

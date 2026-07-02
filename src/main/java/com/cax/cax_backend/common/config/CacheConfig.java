@@ -48,7 +48,36 @@ public class CacheConfig {
                 .recordStats()
                 .build());
 
-        cacheManager.setCaches(List.of(clubsCache, carouselsCache, collegesCache, adsCache));
+        // Bingo live-game caches: every player in a game polls game status, leaderboard
+        // and signer usage every 5–8s, so a short TTL absorbs almost all of that read
+        // load (one Mongo query per game per interval instead of one per player).
+        // Writes (mark/join/start/end) evict, so players still see changes immediately.
+        CaffeineCache bingoGameCache = new CaffeineCache("bingoGame", Caffeine.newBuilder()
+                .maximumSize(1000)
+                .expireAfterWrite(3, TimeUnit.SECONDS)
+                .recordStats()
+                .build());
+
+        CaffeineCache bingoPlayerCountCache = new CaffeineCache("bingoPlayerCount", Caffeine.newBuilder()
+                .maximumSize(1000)
+                .expireAfterWrite(3, TimeUnit.SECONDS)
+                .recordStats()
+                .build());
+
+        CaffeineCache bingoLeaderboardCache = new CaffeineCache("bingoLeaderboard", Caffeine.newBuilder()
+                .maximumSize(500)
+                .expireAfterWrite(3, TimeUnit.SECONDS)
+                .recordStats()
+                .build());
+
+        CaffeineCache bingoSignerUsageCache = new CaffeineCache("bingoSignerUsage", Caffeine.newBuilder()
+                .maximumSize(500)
+                .expireAfterWrite(3, TimeUnit.SECONDS)
+                .recordStats()
+                .build());
+
+        cacheManager.setCaches(List.of(clubsCache, carouselsCache, collegesCache, adsCache,
+                bingoGameCache, bingoPlayerCountCache, bingoLeaderboardCache, bingoSignerUsageCache));
         return cacheManager;
     }
 }

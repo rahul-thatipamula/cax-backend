@@ -85,7 +85,7 @@ public class BingoGameController {
     public ResponseEntity<ApiResponse<BingoGameResponse>> getGame(@PathVariable String gameCode) {
         BingoGame game = bingoGameService.getGame(gameCode);
         long count = bingoGameService.getPlayerCount(gameCode);
-        return ResponseEntity.ok(ApiResponse.success(BingoGameResponse.of(game, count)));
+        return ResponseEntity.ok(ApiResponse.success(BingoGameResponse.publicOf(game, count)));
     }
 
     @GetMapping("/public/{gameCode}/player/{caxId}")
@@ -114,7 +114,7 @@ public class BingoGameController {
     public ResponseEntity<ApiResponse<List<BingoGameResponse>>> getPlayerGames(Authentication auth) {
         List<BingoGame> games = bingoGameService.getVisibleGames(getCallerId(auth));
         List<BingoGameResponse> response = games.stream()
-                .map(g -> BingoGameResponse.of(g, bingoGameService.getPlayerCount(g.getGameCode())))
+                .map(g -> BingoGameResponse.publicOf(g, bingoGameService.getPlayerCount(g.getGameCode())))
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(response));
     }

@@ -14,10 +14,20 @@ import com.cax.cax_backend.organization.repository.OrganizationMemberRepository;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,11 +37,18 @@ public class BingoGameService {
     private final BingoPlayerCardRepository cardRepository;
     private final UserRepository userRepository;
     private final OrganizationMemberRepository memberRepository;
+    private final MongoTemplate mongoTemplate;
 
     // A player's card is always a 5x5 grid (25 cells); the game's prompt pool can be
     // larger so each player draws a random 25-prompt subset instead of an identical card.
     private static final int GRID_SIZE = 25;
     private static final int MAX_PROMPTS = 400;
+    // Payload caps — game codes are guessable-by-design short codes, so anything a
+    // leader submits gets bounded before it's stored and echoed back to players.
+    private static final int MAX_TITLE_LENGTH = 80;
+    private static final int MAX_PROMPT_LENGTH = 200;
+
+    private static final SecureRandom GAME_CODE_RANDOM = new SecureRandom();
 
     // All bingo line patterns for a 5x5 grid
     private static final int[][] BINGO_LINES = {
@@ -63,11 +80,30 @@ public class BingoGameService {
         if (req.getMaxSignerUsesPerGame() != null && req.getMaxSignerUsesPerGame() < 1) {
             throw new BusinessException.BadRequestException("maxSignerUsesPerGame must be at least 1");
         }
+        // Trim and bound every prompt — the UI enforces this too, but the API must not
+        // trust it: an oversized payload would otherwise be stored and echoed to every player.
+        List<String> prompts = new ArrayList<>(req.getPrompts().size());
+        for (String p : req.getPrompts()) {
+            String trimmed = p == null ? "" : p.trim();
+            if (trimmed.isEmpty()) {
+                throw new BusinessException.BadRequestException("Prompts cannot be blank");
+            }
+            if (trimmed.length() > MAX_PROMPT_LENGTH) {
+                throw new BusinessException.BadRequestException(
+                        "Prompts must be at most " + MAX_PROMPT_LENGTH + " characters");
+            }
+            prompts.add(trimmed);
+        }
+        String title = req.getTitle() != null && !req.getTitle().isBlank() ? req.getTitle().trim() : "Human Bingo";
+        if (title.length() > MAX_TITLE_LENGTH) {
+            throw new BusinessException.BadRequestException(
+                    "Title must be at most " + MAX_TITLE_LENGTH + " characters");
+        }
         assertOrgLeader(req.getOrganizationId(), userId);
         BingoGame game = BingoGame.builder()
                 .gameCode(generateGameCode())
-                .title(req.getTitle() != null && !req.getTitle().isBlank() ? req.getTitle() : "Human Bingo")
-                .prompts(req.getPrompts())
+                .title(title)
+                .prompts(prompts)
                 .maxSignerUsesPerGame(req.getMaxSignerUsesPerGame())
                 .status(BingoGame.GameStatus.LOBBY)
                 .createdBy(userId)
@@ -76,6 +112,7 @@ public class BingoGameService {
         return gameRepository.save(game);
     }
 
+    @CacheEvict(value = "bingoGame", key = "#gameCode")
     public BingoGame startGame(String gameCode, String userId) {
         BingoGame game = getGameOrThrow(gameCode);
         assertOrgLeader(game.getOrganizationId(), userId);
@@ -87,6 +124,7 @@ public class BingoGameService {
         return gameRepository.save(game);
     }
 
+    @CacheEvict(value = "bingoGame", key = "#gameCode")
     public BingoGame endGame(String gameCode, String userId) {
         BingoGame game = getGameOrThrow(gameCode);
         assertOrgLeader(game.getOrganizationId(), userId);
@@ -103,10 +141,14 @@ public class BingoGameService {
         return gameRepository.findByOrganizationIdOrderByCreatedAtDesc(organizationId);
     }
 
+    /** Public lobby-polling lookup. Cached briefly so thousands of players polling the
+     *  same game code hit Caffeine, not Mongo; start/end evict so status flips show fast. */
+    @Cacheable(value = "bingoGame", key = "#gameCode")
     public BingoGame getGame(String gameCode) {
         return getGameOrThrow(gameCode);
     }
 
+    @Cacheable(value = "bingoPlayerCount", key = "#gameCode")
     public long getPlayerCount(String gameCode) {
         return cardRepository.countByGameCode(gameCode);
     }
@@ -115,6 +157,7 @@ public class BingoGameService {
         return gameRepository.findAll();
     }
 
+    @CacheEvict(value = "bingoPlayerCount", key = "#gameCode")
     public BingoPlayerCard joinGame(String gameCode, String caxId) {
         BingoGame game = getGameOrThrow(gameCode);
         // Idempotent — return existing card without re-checking status
@@ -156,6 +199,10 @@ public class BingoGameService {
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Player card")));
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "bingoLeaderboard", key = "#gameCode"),
+            @CacheEvict(value = "bingoSignerUsage", key = "#gameCode")
+    })
     public BingoPlayerCard markCell(String gameCode, String caxId, MarkCellRequest req) {
         BingoGame game = getGameOrThrow(gameCode);
         if (game.getStatus() != BingoGame.GameStatus.ACTIVE) {
@@ -170,15 +217,21 @@ public class BingoGameService {
             throw new BusinessException.BadRequestException("Invalid cell index");
         }
 
+        String signerCaxId = req.getSignerCaxId();
+        if (signerCaxId == null || signerCaxId.isBlank()) {
+            throw new BusinessException.BadRequestException("signerCaxId is required");
+        }
+        if (signerCaxId.equals(caxId)) {
+            throw new BusinessException.BadRequestException("Cannot sign your own cell");
+        }
+
+        // Friendly pre-checks — these give players a specific error message. The actual
+        // enforcement is the atomic findAndModify below, which is race-safe under
+        // concurrent requests from the same player (double-tap / two devices).
         boolean alreadyMarked = card.getMarkedCells().stream()
                 .anyMatch(m -> m.getCellIndex() == cellIndex);
         if (alreadyMarked) {
             throw new BusinessException.ResourceConflictException("Cell already marked");
-        }
-
-        String signerCaxId = req.getSignerCaxId();
-        if (signerCaxId.equals(caxId)) {
-            throw new BusinessException.BadRequestException("Cannot sign your own cell");
         }
 
         if (!cardRepository.existsByGameCodeAndCaxId(gameCode, signerCaxId)) {
@@ -209,28 +262,52 @@ public class BingoGameService {
                 .markedAt(Instant.now())
                 .build();
 
-        card.getMarkedCells().add(mark);
-        card.setMarkedCount(card.getMarkedCells().size());
-        card.setCompletedLines(countCompletedLines(card.getMarkedCells()));
-        card.setBingo(card.getCompletedLines() > 0);
+        // Atomic guarded push: only appends the mark if no existing element on this card
+        // already has this cellIndex or this signer ($ne on an array field means "no
+        // element equals"). A concurrent duplicate request matches nothing and gets null
+        // back instead of writing a second mark — no read-modify-write race.
+        Query guard = Query.query(Criteria.where("gameCode").is(gameCode)
+                .and("caxId").is(caxId)
+                .and("markedCells.cellIndex").ne(cellIndex)
+                .and("markedCells.signerCaxId").ne(signerCaxId));
+        Update push = new Update().push("markedCells", mark);
+        BingoPlayerCard updated = mongoTemplate.findAndModify(
+                guard, push, FindAndModifyOptions.options().returnNew(true), BingoPlayerCard.class);
+        if (updated == null) {
+            throw new BusinessException.ResourceConflictException("Cell already marked");
+        }
 
-        return resolveDisplayNames(cardRepository.save(card));
+        // Recompute derived fields from the post-push document and persist them.
+        int completedLines = countCompletedLines(updated.getMarkedCells());
+        updated.setMarkedCount(updated.getMarkedCells().size());
+        updated.setCompletedLines(completedLines);
+        updated.setBingo(completedLines > 0);
+        mongoTemplate.updateFirst(
+                Query.query(Criteria.where("id").is(updated.getId())),
+                new Update()
+                        .set("markedCount", updated.getMarkedCount())
+                        .set("completedLines", updated.getCompletedLines())
+                        .set("bingo", updated.isBingo()),
+                BingoPlayerCard.class);
+
+        return resolveDisplayNames(updated);
     }
 
     /** Returns, for every caxId that has signed at least one cell in this game, how many
-     *  cards they've signed and (if set) the game's per-signer cap. Sorted by count desc. */
+     *  cards they've signed and (if set) the game's per-signer cap. Sorted by count desc.
+     *  Cached briefly — every player polls this while the game is live. */
+    @Cacheable(value = "bingoSignerUsage", key = "#gameCode")
     public List<SignerUsageStat> getSignerUsageStats(String gameCode) {
         BingoGame game = getGameOrThrow(gameCode);
         List<BingoPlayerCard> cards = cardRepository.findByGameCode(gameCode);
 
         Map<String, Long> countsByCaxId = countSignerUses(cards);
+        Map<String, String> namesByCaxId = displayNamesFor(countsByCaxId.keySet());
 
         return countsByCaxId.entrySet().stream()
                 .map(e -> SignerUsageStat.builder()
                         .caxId(e.getKey())
-                        .name(userRepository.findByCaxId(e.getKey())
-                                .map(User::getThoughtsDisplayName)
-                                .orElse(null))
+                        .name(namesByCaxId.get(e.getKey()))
                         .count(e.getValue())
                         .maxAllowed(game.getMaxSignerUsesPerGame())
                         .build())
@@ -268,10 +345,11 @@ public class BingoGameService {
         return Math.round(total * 100.0) / 100.0;
     }
 
+    @Cacheable(value = "bingoLeaderboard", key = "#gameCode")
     public List<BingoLeaderboardEntry> getLeaderboard(String gameCode) {
         getGameOrThrow(gameCode);
         List<BingoPlayerCard> cards = cardRepository.findByGameCode(gameCode);
-        cards.forEach(this::resolveDisplayNames);
+        resolveDisplayNames(cards);
 
         Map<String, Long> signerUseCounts = countSignerUses(cards);
 
@@ -290,9 +368,8 @@ public class BingoGameService {
         if (myCards.isEmpty()) return List.of();
         Set<String> myCodes = myCards.stream()
                 .map(BingoPlayerCard::getGameCode)
-                .collect(java.util.stream.Collectors.toSet());
-        return gameRepository.findAll().stream()
-                .filter(g -> myCodes.contains(g.getGameCode()))
+                .collect(Collectors.toSet());
+        return gameRepository.findByGameCodeIn(myCodes).stream()
                 .sorted(Comparator.comparing(BingoGame::getCreatedAt).reversed())
                 .toList();
     }
@@ -341,29 +418,56 @@ public class BingoGameService {
     }
 
     private String generateGameCode() {
+        // SecureRandom: game codes gate public read endpoints, so they must not be
+        // predictable from previously issued codes the way java.util.Random output is.
         String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        Random rnd = new Random();
         String code;
         do {
             StringBuilder sb = new StringBuilder(6);
-            for (int i = 0; i < 6; i++) sb.append(chars.charAt(rnd.nextInt(chars.length())));
+            for (int i = 0; i < 6; i++) sb.append(chars.charAt(GAME_CODE_RANDOM.nextInt(chars.length())));
             code = sb.toString();
         } while (gameRepository.findByGameCode(code).isPresent());
         return code;
     }
 
+    /** One batched query for the display names of the given caxIds. */
+    private Map<String, String> displayNamesFor(Collection<String> caxIds) {
+        if (caxIds.isEmpty()) return Map.of();
+        return userRepository.findByCaxIdIn(caxIds).stream()
+                .filter(u -> u.getCaxId() != null && u.getThoughtsDisplayName() != null)
+                .collect(Collectors.toMap(User::getCaxId, User::getThoughtsDisplayName, (a, b) -> a));
+    }
+
     private BingoPlayerCard resolveDisplayNames(BingoPlayerCard card) {
         if (card == null) return null;
-        userRepository.findByCaxId(card.getCaxId()).ifPresent(user -> {
-            card.setPlayerName(user.getThoughtsDisplayName());
-        });
-        if (card.getMarkedCells() != null) {
-            for (BingoPlayerCard.CellMark mark : card.getMarkedCells()) {
-                userRepository.findByCaxId(mark.getSignerCaxId()).ifPresent(user -> {
-                    mark.setSignerName(user.getThoughtsDisplayName());
-                });
+        resolveDisplayNames(List.of(card));
+        return card;
+    }
+
+    /** Fills in current player/signer display names for all cards with a single user
+     *  query, instead of one lookup per card + per mark (the old N+1 pattern that made
+     *  the leaderboard cost hundreds of Mongo round-trips per fetch). */
+    private void resolveDisplayNames(List<BingoPlayerCard> cards) {
+        Set<String> caxIds = new HashSet<>();
+        for (BingoPlayerCard card : cards) {
+            caxIds.add(card.getCaxId());
+            if (card.getMarkedCells() != null) {
+                for (BingoPlayerCard.CellMark mark : card.getMarkedCells()) {
+                    caxIds.add(mark.getSignerCaxId());
+                }
             }
         }
-        return card;
+        caxIds.remove(null);
+        Map<String, String> names = displayNamesFor(caxIds);
+        for (BingoPlayerCard card : cards) {
+            String playerName = names.get(card.getCaxId());
+            if (playerName != null) card.setPlayerName(playerName);
+            if (card.getMarkedCells() != null) {
+                for (BingoPlayerCard.CellMark mark : card.getMarkedCells()) {
+                    String signerName = names.get(mark.getSignerCaxId());
+                    if (signerName != null) mark.setSignerName(signerName);
+                }
+            }
+        }
     }
 }
