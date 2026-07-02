@@ -137,7 +137,7 @@ public class BingoGameService {
     }
 
     public List<BingoGame> getGamesByOrganization(String organizationId, String userId) {
-        assertOrgLeader(organizationId, userId);
+        assertOrgMember(organizationId, userId);
         return gameRepository.findByOrganizationIdOrderByCreatedAtDesc(organizationId);
     }
 
@@ -396,6 +396,16 @@ public class BingoGameService {
             if (complete) lines++;
         }
         return lines;
+    }
+
+    /** Throws 403 if the given userId is not a member of the organization. */
+    private void assertOrgMember(String organizationId, String userId) {
+        if (organizationId == null || userId == null) {
+            throw new BusinessException.BadRequestException("Invalid organization or user");
+        }
+        if (!memberRepository.findByOrganizationIdAndUserId(organizationId, userId).isPresent()) {
+            throw new BusinessException.ForbiddenException("You are not a member of this organization");
+        }
     }
 
     /** Throws 403 if the given userId is not President or Vice President of the organization. */
