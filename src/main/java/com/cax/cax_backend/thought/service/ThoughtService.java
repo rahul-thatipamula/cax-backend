@@ -3,6 +3,7 @@ package com.cax.cax_backend.thought.service;
 import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.thought.dto.ThoughtImageRequest;
 import com.cax.cax_backend.thought.event.ThoughtCommentedEvent;
+import com.cax.cax_backend.thought.event.ThoughtCreatedEvent;
 import com.cax.cax_backend.thought.event.ThoughtDisabledEvent;
 import com.cax.cax_backend.thought.event.ThoughtLikedEvent;
 import com.cax.cax_backend.thought.model.Thought;
@@ -105,7 +106,9 @@ public class ThoughtService {
         user.setLastSeenFeedAt(Instant.now());
         userService.saveUser(user);
 
-        return thoughtRepository.save(thought);
+        Thought saved = thoughtRepository.save(thought);
+        eventPublisher.publishEvent(new ThoughtCreatedEvent(this, saved));
+        return saved;
     }
 
     public List<Thought> getFeed(String collegeId, int page, int size) {
