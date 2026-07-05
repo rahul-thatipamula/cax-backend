@@ -81,6 +81,19 @@ public class OrganizationController {
         return ResponseEntity.ok(ApiResponse.success(organizationService.getOrganizationsByCollege(collegeId, page, size)));
     }
 
+    /** Admin-only — lists organizations across all colleges (or filtered by collegeId) for the admin console. */
+    @GetMapping("/admin/all")
+    public ResponseEntity<ApiResponse<List<Organization>>> getAllOrganizationsForAdmin(
+            Authentication auth,
+            @RequestParam(required = false) String collegeId) {
+        String userId = (String) auth.getPrincipal();
+        User user = userService.getUserByUserId(userId);
+        if (user.getRole() != com.cax.cax_backend.common.enums.UserRole.ADMIN) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("Only Admins can view all organizations.");
+        }
+        return ResponseEntity.ok(ApiResponse.success(organizationService.getAllOrganizations(collegeId)));
+    }
+
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<List<Organization>>> getMyClubs(Authentication auth) {
         String userId = (String) auth.getPrincipal();

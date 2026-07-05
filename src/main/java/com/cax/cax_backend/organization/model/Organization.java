@@ -37,6 +37,8 @@ public class Organization {
     private String presidentId;
     private String vicePresidentId;
 
+    private String createdByUserId;
+
     @Builder.Default
     private boolean isApprovalRequired = false;
 

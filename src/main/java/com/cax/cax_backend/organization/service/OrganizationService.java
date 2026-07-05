@@ -46,11 +46,18 @@ public class OrganizationService {
         if (!isAllowed) {
             throw new BusinessException.BadRequestException("Only verified Super Students or Admins can create clubs.");
         }
-        if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
-            throw new BusinessException.BadRequestException("Creator does not have college details added.");
+        if (user.getRole() == UserRole.ADMIN) {
+            if (clubData.getCollegeId() == null || clubData.getCollegeId().isBlank()) {
+                throw new BusinessException.BadRequestException("collegeId is required.");
+            }
+        } else {
+            if (user.getCollegeDetails() == null || user.getCollegeDetails().getCollegeId() == null) {
+                throw new BusinessException.BadRequestException("Creator does not have college details added.");
+            }
+            clubData.setCollegeId(user.getCollegeDetails().getCollegeId());
         }
 
-        clubData.setCollegeId(user.getCollegeDetails().getCollegeId());
+        clubData.setCreatedByUserId(creatorUserId);
         clubData.setCreatedAt(Instant.now());
         clubData.setUpdatedAt(Instant.now());
 
@@ -63,6 +70,13 @@ public class OrganizationService {
     }
 
     public List<Organization> getOrganizationsByCollege(String collegeId) {
+        return organizationRepository.findByCollegeId(collegeId);
+    }
+
+    public List<Organization> getAllOrganizations(String collegeId) {
+        if (collegeId == null || collegeId.isBlank()) {
+            return organizationRepository.findAll();
+        }
         return organizationRepository.findByCollegeId(collegeId);
     }
 
@@ -237,7 +251,8 @@ public class OrganizationService {
             throw new BusinessException.BadRequestException("Only verified Super Students or Admins can assign leaders.");
         }
 
-        if (!club.getCollegeId().equals(creator.getCollegeDetails().getCollegeId())) {
+        if (creator.getRole() == UserRole.SUPER_STUDENT
+                && !club.getCollegeId().equals(creator.getCollegeDetails().getCollegeId())) {
             throw new BusinessException.BadRequestException("You can only manage clubs in your own college.");
         }
 
