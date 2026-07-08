@@ -12,13 +12,22 @@ import java.util.Optional;
 public interface EventRepository extends MongoRepository<Event, String> {
     Optional<Event> findByIdempotencyKey(String idempotencyKey);
 
+    @Query("{ 'organizationId': ?0, 'deleted': { $ne: true } }")
     List<Event> findByOrganizationId(String organizationId);
+
+    @Query("{ 'organizationId': ?0, 'status': ?1, 'deleted': { $ne: true } }")
     List<Event> findByOrganizationIdAndStatus(String organizationId, String status);
+
+    @Query("{ 'status': ?0, 'deleted': { $ne: true } }")
     List<Event> findByStatus(String status);
+
+    @Query("{ 'status': ?0, 'global': true, 'deleted': { $ne: true } }")
     List<Event> findByStatusAndGlobalTrue(String status);
+
+    @Query("{ 'collegeId': ?0, 'status': ?1, 'deleted': { $ne: true } }")
     List<Event> findByCollegeIdAndStatus(String collegeId, String status);
 
     /** Finds events where the given org is listed as a collaborator. */
-    @Query("{ 'collaborators.organizationId': ?0 }")
+    @Query("{ 'collaborators.organizationId': ?0, 'deleted': { $ne: true } }")
     List<Event> findByCollaboratingOrganizationId(String organizationId);
 }

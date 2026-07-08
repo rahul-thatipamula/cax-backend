@@ -38,6 +38,9 @@ public class NotificationService {
 
     public void markAsRead(String callerId, String notificationId) {
         repo.findById(notificationId).ifPresent(n -> {
+            if (n.isDeleted()) {
+                return;
+            }
             if (!n.getUserId().equals(callerId)) {
                 throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You do not own this notification.");
             }
@@ -49,10 +52,15 @@ public class NotificationService {
 
     public void deleteNotification(String callerId, String notificationId) {
         repo.findById(notificationId).ifPresent(n -> {
+            if (n.isDeleted()) {
+                return;
+            }
             if (!n.getUserId().equals(callerId)) {
                 throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException("You do not own this notification.");
             }
-            repo.delete(n);
+            n.setDeleted(true);
+            n.setDeletedAt(Instant.now());
+            repo.save(n);
         });
     }
 

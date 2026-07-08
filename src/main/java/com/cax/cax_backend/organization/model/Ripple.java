@@ -33,4 +33,9 @@ public class Ripple {
 
     @Builder.Default
     private Instant createdAt = Instant.now();
+
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
 }

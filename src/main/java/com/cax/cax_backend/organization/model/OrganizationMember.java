@@ -46,4 +46,9 @@ public class OrganizationMember {
 
     @Builder.Default
     private boolean isMuted = false;
+
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
 }

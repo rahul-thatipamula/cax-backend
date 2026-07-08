@@ -5,6 +5,7 @@ import com.cax.cax_backend.ad.model.UserAdTracking;
 import com.cax.cax_backend.ad.repository.AdRepository;
 import com.cax.cax_backend.ad.repository.UserAdTrackingRepository;
 import com.cax.cax_backend.ad.dto.UserAdAnalyticsDto;
+import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -78,6 +79,9 @@ public class AdService {
         userAdTrackingRepository.save(tracking);
 
         adRepository.findById(adId).ifPresent(ad -> {
+            if (ad.isDeleted()) {
+                return;
+            }
             ad.setTotalImpressions(ad.getTotalImpressions() + 1);
             adRepository.save(ad);
         });
@@ -89,7 +93,11 @@ public class AdService {
     public String recordClick(String userId, String adId) {
         Ad ad = adRepository.findById(adId)
                 .orElseThrow(() -> new IllegalArgumentException("Ad not found: " + adId));
-        
+
+        if (ad.isDeleted()) {
+            throw new IllegalArgumentException("Ad not found: " + adId);
+        }
+
         ad.setTotalClicks(ad.getTotalClicks() + 1);
         adRepository.save(ad);
 
@@ -176,7 +184,16 @@ public class AdService {
 
     @CacheEvict(value = "ads", allEntries = true)
     public void deleteAd(String id) {
-        adRepository.deleteById(id);
+        Ad ad = adRepository.findById(id)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Ad", id));
+
+        if (ad.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("Ad", id);
+        }
+
+        ad.setDeleted(true);
+        ad.setDeletedAt(Instant.now());
+        adRepository.save(ad);
     }
 
     @CacheEvict(value = "ads", allEntries = true)

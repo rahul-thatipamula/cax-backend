@@ -40,4 +40,9 @@ public class Notification {
     @Builder.Default
     private Instant createdAt = Instant.now();
     private Instant readAt;
+
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
 }

@@ -325,8 +325,17 @@ public class EventService {
             throw new BusinessException.BadRequestException("Cannot delete event because users have already registered or joined.");
         }
 
-        eventMemoryRepository.deleteByEventId(eventId);
-        eventRepository.delete(event);
+        Instant now = Instant.now();
+        List<EventMemory> memories = eventMemoryRepository.findAllByEventId(eventId);
+        for (EventMemory memory : memories) {
+            memory.setDeleted(true);
+            memory.setDeletedAt(now);
+            eventMemoryRepository.save(memory);
+        }
+
+        event.setDeleted(true);
+        event.setDeletedAt(now);
+        eventRepository.save(event);
         log.info("Event '{}' ({}) deleted by user {}", event.getName(), eventId, userId);
     }
 
@@ -378,6 +387,9 @@ public class EventService {
     public Event getEventById(String eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Event", eventId));
+        if (event.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("Event", eventId);
+        }
         populateCollegeDetails(event);
         populateJoinedCount(event);
         return event;
@@ -491,7 +503,9 @@ public class EventService {
                 .filter(id -> id != null && !id.isBlank())
                 .collect(Collectors.toList());
 
-        List<Event> events = eventRepository.findAllById(eventIds);
+        List<Event> events = eventRepository.findAllById(eventIds).stream()
+                .filter(e -> !e.isDeleted())
+                .collect(Collectors.toList());
         populateJoinedCount(events);
         Map<String, Event> eventMap = events.stream()
                 .collect(Collectors.toMap(Event::getId, e -> e));
@@ -1123,8 +1137,13 @@ public class EventService {
         if (!memory.getEventId().equals(eventId)) {
             throw new BusinessException.BadRequestException("Memory does not belong to this event.");
         }
+        if (memory.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("EventMemory", memoryId);
+        }
 
-        eventMemoryRepository.delete(memory);
+        memory.setDeleted(true);
+        memory.setDeletedAt(Instant.now());
+        eventMemoryRepository.save(memory);
     }
 
     public EventMemory toggleHideMemory(String userId, String eventId, String memoryId, boolean hidden) {
@@ -1137,6 +1156,9 @@ public class EventService {
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("EventMemory", memoryId));
         if (!memory.getEventId().equals(eventId)) {
             throw new BusinessException.BadRequestException("Memory does not belong to this event.");
+        }
+        if (memory.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("EventMemory", memoryId);
         }
 
         memory.setHidden(hidden);

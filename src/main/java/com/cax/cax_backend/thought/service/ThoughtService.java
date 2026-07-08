@@ -1,6 +1,7 @@
 package com.cax.cax_backend.thought.service;
 
 import com.cax.cax_backend.common.exception.BusinessException;
+import com.cax.cax_backend.common.util.ProfanityFilter;
 import com.cax.cax_backend.thought.dto.ThoughtImageRequest;
 import com.cax.cax_backend.thought.event.ThoughtCommentedEvent;
 import com.cax.cax_backend.thought.event.ThoughtCreatedEvent;
@@ -41,8 +42,11 @@ public class ThoughtService {
     private final ThoughtBoostService thoughtBoostService;
 
     public Thought getById(String thoughtId) {
-        return thoughtRepository.findById(thoughtId)
+        Thought thought = thoughtRepository.findById(thoughtId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Thought", thoughtId));
+        if (thought.isDeleted())
+            throw new BusinessException.ResourceNotFoundException("Thought", thoughtId);
+        return thought;
     }
 
     public Thought create(String userId, String heading, String content, String sharedLink,
@@ -55,6 +59,8 @@ public class ThoughtService {
             throw new BusinessException.BadRequestException("Content must not be empty");
         if (sharedLink != null && sharedLink.trim().length() > 255)
             throw new BusinessException.BadRequestException("Shared link must not exceed 255 characters");
+        if (ProfanityFilter.isOffensive(heading) || ProfanityFilter.isOffensive(content))
+            throw new BusinessException.BadRequestException("Your post contains language that isn't allowed. Please revise it.");
 
         List<Thought.ThoughtImage> thoughtImages = new ArrayList<>();
         if (images != null) {
@@ -154,7 +160,7 @@ public class ThoughtService {
         List<Thought> fetched = thoughtRepository.findAllById(organicIds);
         List<Thought> organic = organicIds.stream()
                 .map(id -> fetched.stream().filter(t -> t.getId().equals(id)).findFirst().orElse(null))
-                .filter(t -> t != null && !t.isDisabled())
+                .filter(t -> t != null && !t.isDisabled() && !t.isDeleted())
                 .limit(5)
                 .collect(Collectors.toList());
 
@@ -214,7 +220,9 @@ public class ThoughtService {
         Thought thought = getById(thoughtId);
         if (!thought.getUserId().equals(userId))
             throw new BusinessException.BadRequestException("Unauthorized: You do not have permission to delete this thought.");
-        thoughtRepository.delete(thought);
+        thought.setDeleted(true);
+        thought.setDeletedAt(Instant.now());
+        thoughtRepository.save(thought);
         engagementService.onThoughtDeleted(thoughtId);
     }
 
@@ -296,6 +304,8 @@ public class ThoughtService {
             throw new BusinessException.BadRequestException("Heading must not exceed 100 characters");
         if (content == null || content.trim().isEmpty())
             throw new BusinessException.BadRequestException("Content must not be empty");
+        if (ProfanityFilter.isOffensive(heading) || ProfanityFilter.isOffensive(content))
+            throw new BusinessException.BadRequestException("Your post contains language that isn't allowed. Please revise it.");
 
         List<Thought.ThoughtImage> thoughtImages = new ArrayList<>();
         if (images != null) {

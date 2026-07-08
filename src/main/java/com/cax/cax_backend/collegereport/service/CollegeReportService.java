@@ -60,6 +60,9 @@ public class CollegeReportService {
     public CollegeReport resolve(String id, String adminNote) {
         CollegeReport report = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Report not found"));
+        if (report.isDeleted()) {
+            throw new RuntimeException("Report not found");
+        }
         report.setStatus(ReportStatus.RESOLVED);
         report.setResolvedAt(Instant.now());
         report.setAdminNote(adminNote);
@@ -69,6 +72,9 @@ public class CollegeReportService {
     public CollegeReport dismiss(String id, String adminNote) {
         CollegeReport report = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Report not found"));
+        if (report.isDeleted()) {
+            throw new RuntimeException("Report not found");
+        }
         report.setStatus(ReportStatus.DISMISSED);
         report.setResolvedAt(Instant.now());
         report.setAdminNote(adminNote);
@@ -80,6 +86,13 @@ public class CollegeReportService {
     }
 
     public void delete(String id) {
-        repository.deleteById(id);
+        CollegeReport report = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Report not found"));
+        if (report.isDeleted()) {
+            throw new RuntimeException("Report not found");
+        }
+        report.setDeleted(true);
+        report.setDeletedAt(Instant.now());
+        repository.save(report);
     }
 }

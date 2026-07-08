@@ -19,13 +19,16 @@ public class CollegeController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<College>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(repo.findAll()));
+        return ResponseEntity.ok(ApiResponse.success(repo.findAllActive()));
     }
 
     @Cacheable(value = "colleges", key = "#id")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<College>> getById(@PathVariable String id) {
         College c = repo.findById(id).orElseThrow(() -> new BusinessException.ResourceNotFoundException("College", id));
+        if (c.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("College", id);
+        }
         return ResponseEntity.ok(ApiResponse.success(c));
     }
 
@@ -68,10 +71,14 @@ public class CollegeController {
     @CacheEvict(value = "colleges", allEntries = true)
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable String id) {
-        if (!repo.existsById(id)) {
+        College college = repo.findById(id)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("College", id));
+        if (college.isDeleted()) {
             throw new BusinessException.ResourceNotFoundException("College", id);
         }
-        repo.deleteById(id);
+        college.setDeleted(true);
+        college.setDeletedAt(Instant.now());
+        repo.save(college);
         return ResponseEntity.ok(ApiResponse.success("College deleted successfully"));
     }
 
@@ -79,7 +86,10 @@ public class CollegeController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<College>> update(@PathVariable String id, @RequestBody College updated) {
         College existing = repo.findById(id).orElseThrow(() -> new BusinessException.ResourceNotFoundException("College", id));
-        
+        if (existing.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("College", id);
+        }
+
         if (updated.getCollegeCode() == null || updated.getCollegeCode().isBlank()) {
             throw new BusinessException.BadRequestException("College code cannot be empty");
         }

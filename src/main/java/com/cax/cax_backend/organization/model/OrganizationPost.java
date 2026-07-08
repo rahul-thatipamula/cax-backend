@@ -56,6 +56,11 @@ public class OrganizationPost {
     @Builder.Default
     private List<PollOption> pollOptions = new ArrayList<>();
 
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
+
     @Data
     @Builder
     @NoArgsConstructor

@@ -53,8 +53,12 @@ public class BugReportService {
      * Get a specific bug report by ID
      */
     public BugReport getBugReportById(String reportId) {
-        return bugReportRepository.findById(reportId)
+        BugReport report = bugReportRepository.findById(reportId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Bug Report", reportId));
+        if (report.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("Bug Report", reportId);
+        }
+        return report;
     }
 
     /**
@@ -111,7 +115,16 @@ public class BugReportService {
      * Delete a bug report (admin only)
      */
     public void deleteBugReport(String reportId) {
-        bugReportRepository.deleteById(reportId);
+        BugReport report = bugReportRepository.findById(reportId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Bug Report", reportId));
+
+        if (report.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("Bug Report", reportId);
+        }
+
+        report.setDeleted(true);
+        report.setDeletedAt(Instant.now());
+        bugReportRepository.save(report);
     }
 
     /**

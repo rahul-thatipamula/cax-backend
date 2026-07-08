@@ -51,4 +51,9 @@ public class Ad {
     private Instant createdAt = Instant.now();
 
     private Instant updatedAt;
+
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
 }

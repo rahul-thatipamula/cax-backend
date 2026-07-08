@@ -132,11 +132,15 @@ public class ThoughtReportServiceTest {
     @Test
     public void dismissReports_shouldClearReportsAndEnableThought() {
         thought.setDisabled(true);
+        ThoughtReport report = ThoughtReport.builder().postId("thought-1").build();
+        when(thoughtReportRepository.findByPostId("thought-1")).thenReturn(List.of(report));
         when(thoughtRepository.findById("thought-1")).thenReturn(Optional.of(thought));
 
         thoughtReportService.dismissReports("thought-1");
 
-        verify(thoughtReportRepository, times(1)).deleteByPostId("thought-1");
+        verify(thoughtReportRepository, times(1)).save(report);
+        assertTrue(report.isDeleted());
+        assertNotNull(report.getDeletedAt());
         assertFalse(thought.isDisabled());
         verify(thoughtRepository, times(1)).save(thought);
     }

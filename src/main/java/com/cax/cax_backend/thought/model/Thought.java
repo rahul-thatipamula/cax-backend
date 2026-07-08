@@ -64,6 +64,11 @@ public class Thought {
     private boolean disabled = false;
 
     @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
+
+    @Builder.Default
     private boolean creatorVerified = false;
 
     @Data

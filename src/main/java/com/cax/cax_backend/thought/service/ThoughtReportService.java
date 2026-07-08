@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,6 +42,10 @@ public class ThoughtReportService {
 
         Thought thought = thoughtRepository.findById(thoughtId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Thought", thoughtId));
+
+        if (thought.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("Thought", thoughtId);
+        }
 
         if (thought.isDisabled()) {
             throw new BusinessException.BadRequestException("This thought is already disabled.");
@@ -84,7 +89,7 @@ public class ThoughtReportService {
                     String thoughtId = entry.getKey();
                     List<ThoughtReport> reports = entry.getValue();
                     Thought thought = thoughtRepository.findById(thoughtId).orElse(null);
-                    if (thought == null) return null;
+                    if (thought == null || thought.isDeleted()) return null;
                     return ReportedThoughtDetailDto.builder()
                             .thought(thought)
                             .reportCount(reports.size())
@@ -97,7 +102,13 @@ public class ThoughtReportService {
     }
 
     public void dismissReports(String thoughtId) {
-        thoughtReportRepository.deleteByPostId(thoughtId);
+        List<ThoughtReport> reports = thoughtReportRepository.findByPostId(thoughtId);
+        Instant now = Instant.now();
+        for (ThoughtReport report : reports) {
+            report.setDeleted(true);
+            report.setDeletedAt(now);
+            thoughtReportRepository.save(report);
+        }
         thoughtRepository.findById(thoughtId).ifPresent(thought -> {
             if (thought.isDisabled()) {
                 thought.setDisabled(false);

@@ -41,10 +41,13 @@ public class SettingsService {
         } else {
             UserSettings primarySettings = settingsList.get(0);
             if (settingsList.size() > 1) {
-                // Remove all duplicate settings documents to clean up the DB
+                // Soft-delete all duplicate settings documents to clean up the DB
                 for (int i = 1; i < settingsList.size(); i++) {
                     try {
-                        settingsRepository.delete(settingsList.get(i));
+                        UserSettings duplicate = settingsList.get(i);
+                        duplicate.setDeleted(true);
+                        duplicate.setDeletedAt(Instant.now());
+                        settingsRepository.save(duplicate);
                     } catch (Exception ignored) {}
                 }
             }

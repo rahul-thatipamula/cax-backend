@@ -51,4 +51,9 @@ public class BugReport {
     private Instant updatedAt;
     @JsonDeserialize(using = InstantDeserializer.class)
     private Instant resolvedAt;
+
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
 }

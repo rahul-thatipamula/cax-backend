@@ -29,4 +29,9 @@ public class EventMemory {
     
     @Builder.Default
     private boolean hidden = false;
+
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
 }

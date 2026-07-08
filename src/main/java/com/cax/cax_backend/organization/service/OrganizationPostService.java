@@ -76,6 +76,10 @@ public class OrganizationPostService {
         OrganizationPost post = organizationPostRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("OrganizationPost", postId));
 
+        if (post.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("OrganizationPost", postId);
+        }
+
         verifyUserCollegeMatchesOrganization(userId, post.getOrganizationId());
 
         if (!post.isPoll()) {
@@ -122,6 +126,10 @@ public class OrganizationPostService {
         OrganizationPost post = organizationPostRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("OrganizationPost", postId));
 
+        if (post.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("OrganizationPost", postId);
+        }
+
         if (!canManagePosts(userId, post.getOrganizationId())) {
             throw new BusinessException.BadRequestException("Unauthorized: You do not have permission to manage posts for this club.");
         }
@@ -137,12 +145,18 @@ public class OrganizationPostService {
             }
         }
 
-        organizationPostRepository.delete(post);
+        post.setDeleted(true);
+        post.setDeletedAt(Instant.now());
+        organizationPostRepository.save(post);
     }
 
     public OrganizationPost likePost(String userId, String postId) {
         OrganizationPost post = organizationPostRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("OrganizationPost", postId));
+
+        if (post.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("OrganizationPost", postId);
+        }
 
         verifyUserCollegeMatchesOrganization(userId, post.getOrganizationId());
 
@@ -164,6 +178,10 @@ public class OrganizationPostService {
     public OrganizationPost addComment(String userId, String postId, String text) {
         OrganizationPost post = organizationPostRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("OrganizationPost", postId));
+
+        if (post.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("OrganizationPost", postId);
+        }
 
         verifyUserCollegeMatchesOrganization(userId, post.getOrganizationId());
 

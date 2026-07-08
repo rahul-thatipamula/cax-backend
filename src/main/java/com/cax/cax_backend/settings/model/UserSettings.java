@@ -53,4 +53,9 @@ public class UserSettings {
 
     @Builder.Default
     private Instant updatedAt = Instant.now();
+
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
 }

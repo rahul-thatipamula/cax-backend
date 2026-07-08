@@ -45,6 +45,10 @@ public class Carousel {
     private Instant updatedAt;
     private Instant expiresAt;
 
+    @Builder.Default
+    private boolean deleted = false;
+    private Instant deletedAt;
+
     @JsonProperty("actionLink")
     public String getActionLink() {
         return actionLink != null ? actionLink : actionUrl;

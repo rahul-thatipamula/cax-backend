@@ -158,6 +158,10 @@ public class RippleService {
         Ripple ripple = rippleRepository.findById(rippleId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Ripple", rippleId));
 
+        if (ripple.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("Ripple", rippleId);
+        }
+
         // Check 2-minute time lock
         Duration duration = Duration.between(ripple.getCreatedAt(), Instant.now());
         if (duration.getSeconds() > 120) {
@@ -191,6 +195,8 @@ public class RippleService {
             throw new BusinessException.BadRequestException("Unauthorized: You do not have permission to delete this ripple.");
         }
 
-        rippleRepository.delete(ripple);
+        ripple.setDeleted(true);
+        ripple.setDeletedAt(Instant.now());
+        rippleRepository.save(ripple);
     }
 }

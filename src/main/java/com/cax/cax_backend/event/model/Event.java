@@ -158,6 +158,11 @@ public class Event {
     @Indexed(unique = true, partialFilter = "{'idempotencyKey': {'$type': 'string'}}")
     private String idempotencyKey;
 
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
+
 
     public List<EventCoordinator> getCoordinators() {
         return coordinators == null ? new java.util.ArrayList<>() : coordinators;

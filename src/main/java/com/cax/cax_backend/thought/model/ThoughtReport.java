@@ -32,4 +32,9 @@ public class ThoughtReport {
 
     @Builder.Default
     private Instant reportedAt = Instant.now();
+
+    @Builder.Default
+    private boolean deleted = false;
+
+    private Instant deletedAt;
 }

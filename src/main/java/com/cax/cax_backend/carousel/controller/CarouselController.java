@@ -46,7 +46,11 @@ public class CarouselController {
 
     @PostMapping("/{id}/click")
     public ResponseEntity<ApiResponse<Carousel>> trackClick(@PathVariable String id) {
-        Carousel carousel = repo.findById(id).orElseThrow();
+        Carousel carousel = repo.findById(id)
+                .orElseThrow(() -> new com.cax.cax_backend.common.exception.BusinessException.ResourceNotFoundException("Carousel", id));
+        if (carousel.isDeleted()) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.ResourceNotFoundException("Carousel", id);
+        }
         carousel.setClicks(carousel.getClicks() + 1);
         carousel.setUpdatedAt(Instant.now());
         return ResponseEntity.ok(ApiResponse.success(repo.save(carousel)));
@@ -74,7 +78,11 @@ public class CarouselController {
     @AdminActivityLog(action = "Update Carousel Banner", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<Carousel>> update(Authentication auth, @PathVariable String id, @RequestBody Carousel body) {
         checkAdmin(auth);
-        Carousel carousel = repo.findById(id).orElseThrow();
+        Carousel carousel = repo.findById(id)
+                .orElseThrow(() -> new com.cax.cax_backend.common.exception.BusinessException.ResourceNotFoundException("Carousel", id));
+        if (carousel.isDeleted()) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.ResourceNotFoundException("Carousel", id);
+        }
         carousel.setTitle(body.getTitle());
         carousel.setDescription(body.getDescription());
         carousel.setImageUrl(body.getImageUrl());
@@ -96,7 +104,14 @@ public class CarouselController {
     @AdminActivityLog(action = "Delete Carousel Banner", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<String>> delete(Authentication auth, @PathVariable String id) {
         checkAdmin(auth);
-        repo.deleteById(id);
+        Carousel carousel = repo.findById(id)
+                .orElseThrow(() -> new com.cax.cax_backend.common.exception.BusinessException.ResourceNotFoundException("Carousel", id));
+        if (carousel.isDeleted()) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.ResourceNotFoundException("Carousel", id);
+        }
+        carousel.setDeleted(true);
+        carousel.setDeletedAt(Instant.now());
+        repo.save(carousel);
         return ResponseEntity.ok(ApiResponse.success("Carousel deleted"));
     }
 
@@ -105,7 +120,11 @@ public class CarouselController {
     @AdminActivityLog(action = "Toggle Carousel Banner Status", resourceIdParam = "id")
     public ResponseEntity<ApiResponse<Carousel>> toggleActive(Authentication auth, @PathVariable String id) {
         checkAdmin(auth);
-        Carousel carousel = repo.findById(id).orElseThrow();
+        Carousel carousel = repo.findById(id)
+                .orElseThrow(() -> new com.cax.cax_backend.common.exception.BusinessException.ResourceNotFoundException("Carousel", id));
+        if (carousel.isDeleted()) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.ResourceNotFoundException("Carousel", id);
+        }
         carousel.setActive(!carousel.isActive());
         carousel.setUpdatedAt(Instant.now());
         return ResponseEntity.ok(ApiResponse.success(repo.save(carousel)));

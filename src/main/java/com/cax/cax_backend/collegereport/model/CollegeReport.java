@@ -36,6 +36,10 @@ public class CollegeReport {
     private Instant resolvedAt;
     private String adminNote;
 
+    @Builder.Default
+    private boolean deleted = false;
+    private Instant deletedAt;
+
     public enum ReportStatus {
         PENDING, RESOLVED, DISMISSED
     }

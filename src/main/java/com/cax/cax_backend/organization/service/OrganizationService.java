@@ -91,6 +91,28 @@ public class OrganizationService {
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Organization", organizationId));
     }
 
+    // Creates a new membership, or reactivates a previously soft-deleted one for the
+    // same (organizationId, userId) pair — the unique index on that pair means a plain
+    // insert would fail with a duplicate-key error if the user had left and rejoined.
+    private OrganizationMember createOrReactivateMember(String organizationId, String userId, OrganizationMember data) {
+        Optional<OrganizationMember> existing = organizationMemberRepository
+                .findAnyByOrganizationIdAndUserId(organizationId, userId);
+        if (existing.isPresent()) {
+            OrganizationMember member = existing.get();
+            member.setName(data.getName());
+            member.setEmail(data.getEmail());
+            member.setPicture(data.getPicture());
+            member.setRole(data.getRole());
+            member.setAccessControls(data.getAccessControls());
+            member.setJoinedAt(Instant.now());
+            member.setMuted(false);
+            member.setDeleted(false);
+            member.setDeletedAt(null);
+            return organizationMemberRepository.save(member);
+        }
+        return organizationMemberRepository.save(data);
+    }
+
     public Map<String, Object> joinOrganization(String userId, String organizationId, String paymentScreenshot, String utr) {
         Organization club = getOrganizationById(organizationId);
         User user = userService.getUserByUserId(userId);
@@ -197,7 +219,7 @@ public class OrganizationService {
                     .joinedAt(Instant.now())
                     .build();
 
-            organizationMemberRepository.save(member);
+            createOrReactivateMember(organizationId, userId, member);
             result.put("status", "JOINED");
             result.put("message", "Joined club successfully.");
 
@@ -238,7 +260,9 @@ public class OrganizationService {
             organizationRepository.save(club);
         }
 
-        organizationMemberRepository.delete(member);
+        member.setDeleted(true);
+        member.setDeletedAt(Instant.now());
+        organizationMemberRepository.save(member);
     }
 
     @CacheEvict(value = "clubs", key = "#organizationId")
@@ -297,7 +321,7 @@ public class OrganizationService {
                 pm.setAccessControls(presPerms);
                 organizationMemberRepository.save(pm);
             } else {
-                organizationMemberRepository.save(OrganizationMember.builder()
+                createOrReactivateMember(organizationId, presidentUserId, OrganizationMember.builder()
                         .organizationId(organizationId)
                         .userId(presidentUserId)
                         .name(presUser.getName())
@@ -345,7 +369,7 @@ public class OrganizationService {
                 vpm.setAccessControls(vpPerms);
                 organizationMemberRepository.save(vpm);
             } else {
-                organizationMemberRepository.save(OrganizationMember.builder()
+                createOrReactivateMember(organizationId, vicePresidentUserId, OrganizationMember.builder()
                         .organizationId(organizationId)
                         .userId(vicePresidentUserId)
                         .name(vpUser.getName())
@@ -410,7 +434,7 @@ public class OrganizationService {
             organizationJoinRequestRepository.save(request);
 
             if (!organizationMemberRepository.existsByOrganizationIdAndUserId(organizationId, request.getUserId())) {
-                organizationMemberRepository.save(OrganizationMember.builder()
+                createOrReactivateMember(organizationId, request.getUserId(), OrganizationMember.builder()
                         .organizationId(organizationId)
                         .userId(request.getUserId())
                         .name(request.getName())
@@ -523,7 +547,9 @@ public class OrganizationService {
             throw new BusinessException.BadRequestException("Cannot remove the President or Vice President. Reassign them first.");
         }
 
-        organizationMemberRepository.delete(member);
+        member.setDeleted(true);
+        member.setDeletedAt(Instant.now());
+        organizationMemberRepository.save(member);
     }
 
     public List<OrganizationMember> getOrganizationMembers(String organizationId) {
