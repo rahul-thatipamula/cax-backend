@@ -1,15 +1,19 @@
 package com.cax.cax_backend.notification.controller;
 
+import com.cax.cax_backend.common.annotation.AdminActivityLog;
 import com.cax.cax_backend.common.dto.ApiResponse;
+import com.cax.cax_backend.notification.dto.NotificationAdminView;
 import com.cax.cax_backend.notification.model.Notification;
 import com.cax.cax_backend.notification.service.NotificationService;
 import com.cax.cax_backend.common.enums.NotificationEnums;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -75,6 +79,38 @@ public class NotificationController {
         }
 
         return ResponseEntity.ok(ApiResponse.success("Custom notification processed successfully"));
+    }
+
+    @GetMapping("/admin/all")
+    @AdminActivityLog(action = "List All Notifications")
+    public ResponseEntity<ApiResponse<Page<NotificationAdminView>>> getAdminNotifications(
+            Authentication auth,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String collegeId,
+            @RequestParam(required = false) Boolean read,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        checkAdmin(auth);
+
+        Instant start = parseInstant(startDate);
+        Instant end = parseInstant(endDate);
+
+        Page<NotificationAdminView> result = service.getAdminNotifications(
+                page, size, search, userId, collegeId, read, start, end);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    private Instant parseInstant(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Instant.parse(value);
+        } catch (Exception e) {
+            throw new com.cax.cax_backend.common.exception.BusinessException.BadRequestException(
+                    "Invalid date format, expected ISO-8601 (e.g. 2026-07-01T00:00:00Z)");
+        }
     }
 
     private void checkAdmin(Authentication auth) {

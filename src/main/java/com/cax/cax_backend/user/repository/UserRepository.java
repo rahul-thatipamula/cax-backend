@@ -18,6 +18,7 @@ public interface UserRepository extends MongoRepository<User, String>, CustomUse
     boolean existsByCaxId(String caxId);
     java.util.Optional<User> findByCaxId(String caxId);
     List<User> findByCaxIdIn(java.util.Collection<String> caxIds);
+    List<User> findByUserIdIn(java.util.Collection<String> userIds);
 
     @Query("{ 'isOnline': true, '$or': [ { 'lastSeenAt': { '$lt': ?0 } }, { 'lastSeenAt': null } ] }")
     List<User> findStaleOnlineUsers(java.time.Instant threshold);

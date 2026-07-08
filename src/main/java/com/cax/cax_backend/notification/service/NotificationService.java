@@ -1,8 +1,10 @@
 package com.cax.cax_backend.notification.service;
 
 import com.cax.cax_backend.common.enums.NotificationEnums.*;
+import com.cax.cax_backend.notification.dto.NotificationAdminView;
 import com.cax.cax_backend.notification.model.Notification;
 import com.cax.cax_backend.notification.repository.NotificationRepository;
+import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import com.cax.cax_backend.settings.model.UserSettings;
 import com.cax.cax_backend.settings.repository.SettingsRepository;
@@ -18,10 +20,20 @@ import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.MessagingErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Async;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,9 +43,101 @@ public class NotificationService {
     private final NotificationRepository repo;
     private final UserRepository userRepository;
     private final SettingsRepository settingsRepository;
+    private final MongoTemplate mongoTemplate;
 
     public List<Notification> getUserNotifications(String userId) {
         return repo.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    /**
+     * Admin-facing browse of every notification ever sent, with optional filters and
+     * recipient (user) details attached for display.
+     */
+    public Page<NotificationAdminView> getAdminNotifications(
+            int page, int size, String search, String userId, String collegeId,
+            Boolean read, Instant startDate, Instant endDate) {
+
+        List<Criteria> criteria = new ArrayList<>();
+        criteria.add(Criteria.where("deleted").ne(true));
+
+        if (search != null && !search.isBlank()) {
+            Criteria titleOrBody = new Criteria().orOperator(
+                    Criteria.where("title").regex(search, "i"),
+                    Criteria.where("body").regex(search, "i")
+            );
+            criteria.add(titleOrBody);
+        }
+
+        if (collegeId != null && !collegeId.isBlank()) {
+            List<String> collegeUserIds = userRepository.findByCollegeDetails_CollegeId(collegeId)
+                    .stream().map(User::getUserId).toList();
+            if (collegeUserIds.isEmpty()) {
+                return Page.empty(PageRequest.of(page, size));
+            }
+            criteria.add(Criteria.where("userId").in(collegeUserIds));
+        }
+
+        if (userId != null && !userId.isBlank()) {
+            criteria.add(Criteria.where("userId").is(userId));
+        }
+
+        if (read != null) {
+            criteria.add(Criteria.where("read").is(read));
+        }
+
+        if (startDate != null || endDate != null) {
+            Criteria dateCriteria = Criteria.where("createdAt");
+            if (startDate != null) dateCriteria = dateCriteria.gte(startDate);
+            if (endDate != null) dateCriteria = dateCriteria.lte(endDate);
+            criteria.add(dateCriteria);
+        }
+
+        Query query = new Query(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+        long total = mongoTemplate.count(query, Notification.class);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        query.with(pageable);
+        List<Notification> notifications = mongoTemplate.find(query, Notification.class);
+
+        List<String> recipientIds = notifications.stream()
+                .map(Notification::getUserId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+        Map<String, User> usersById = recipientIds.isEmpty()
+                ? Collections.emptyMap()
+                : userRepository.findByUserIdIn(recipientIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(User::getUserId, u -> u, (a, b) -> a));
+
+        List<NotificationAdminView> views = notifications.stream()
+                .map(n -> toAdminView(n, usersById.get(n.getUserId())))
+                .toList();
+
+        return new PageImpl<>(views, pageable, total);
+    }
+
+    private NotificationAdminView toAdminView(Notification n, User user) {
+        NotificationAdminView.Recipient recipient = NotificationAdminView.Recipient.builder()
+                .userId(n.getUserId())
+                .name(user != null ? user.getName() : null)
+                .email(user != null ? user.getEmail() : null)
+                .picture(user != null ? user.getPicture() : null)
+                .collegeName(user != null && user.getCollegeDetails() != null ? user.getCollegeDetails().getCollegeName() : null)
+                .build();
+
+        return NotificationAdminView.builder()
+                .id(n.getId())
+                .title(n.getTitle())
+                .body(n.getBody())
+                .type(n.getType())
+                .imageUrl(n.getImageUrl())
+                .priority(n.getPriority())
+                .read(n.isRead())
+                .data(n.getData())
+                .createdAt(n.getCreatedAt())
+                .readAt(n.getReadAt())
+                .recipient(recipient)
+                .build();
     }
 
     public void markAsRead(String callerId, String notificationId) {
