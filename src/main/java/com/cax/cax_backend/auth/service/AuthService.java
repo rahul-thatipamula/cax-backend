@@ -16,6 +16,7 @@ import com.cax.cax_backend.common.exception.AuthException;
 import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.common.util.JwtUtil;
 import com.cax.cax_backend.common.util.EncryptionUtils;
+import com.cax.cax_backend.common.util.EmailDomainUtils;
 import com.cax.cax_backend.common.util.TotpUtil;
 
 import com.cax.cax_backend.user.event.CollegeSelectedEvent;
@@ -636,26 +637,8 @@ public class AuthService {
 
     private static final String CAXONE_COLLEGE_CODE = "CAXONE";
 
-    private static final java.util.Set<String> PERSONAL_EMAIL_DOMAINS = java.util.Set.of(
-        "gmail.com", "googlemail.com",
-        "yahoo.com", "yahoo.co.in", "yahoo.in", "yahoo.co.uk", "ymail.com", "rocketmail.com",
-        "hotmail.com", "hotmail.co.in", "hotmail.co.uk",
-        "outlook.com", "outlook.in", "live.com", "msn.com",
-        "icloud.com", "me.com", "mac.com",
-        "aol.com",
-        "protonmail.com", "proton.me", "pm.me",
-        "rediffmail.com",
-        "mail.com",
-        "zoho.com",
-        "tutanota.com",
-        "fastmail.com",
-        "inbox.com",
-        "yandex.com", "yandex.ru"
-    );
-
     private boolean isPersonalEmailDomain(String domain) {
-        if (domain == null || domain.isBlank()) return true;
-        return PERSONAL_EMAIL_DOMAINS.contains(domain.toLowerCase().trim());
+        return EmailDomainUtils.isPersonalEmailDomain(domain);
     }
 
     private College getOrCreateCAXoneCollege() {

@@ -317,7 +317,7 @@ public class OrganizationService {
                 notificationService.createNotification(
                     presidentUserId,
                     "Assigned as Organization President",
-                    "You have been assigned as the President of the club: " + club.getName(),
+                    "You have been assigned as the President of the organization: " + club.getName(),
                     NotificationType.SYSTEM,
                     data
                 );
@@ -365,7 +365,7 @@ public class OrganizationService {
                 notificationService.createNotification(
                     vicePresidentUserId,
                     "Assigned as Organization Vice President",
-                    "You have been assigned as the Vice President of the club: " + club.getName(),
+                    "You have been assigned as the Vice President of the organization: " + club.getName(),
                     NotificationType.SYSTEM,
                     data
                 );

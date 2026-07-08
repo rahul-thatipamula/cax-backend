@@ -291,8 +291,11 @@ public class EmailService {
 
         String to = user.getEmail();
         String name = user.getName() != null ? user.getName() : "Student";
-        String clubName = organization != null ? organization.getName() : "the club";
-        String subject = String.format("Congratulations! You've been assigned as %s of %s 🎉", role, clubName);
+        String orgTypeLabel = organization != null && organization.getType() != null
+                ? organization.getType().getDisplayName().toLowerCase()
+                : "organization";
+        String orgName = organization != null ? organization.getName() : "the " + orgTypeLabel;
+        String subject = String.format("Congratulations! You've been assigned as %s of %s", role, orgName);
 
         String htmlContent = String.format(
             "<!DOCTYPE html>\n" +
@@ -312,15 +315,15 @@ public class EmailService {
             "</head>\n" +
             "<body>\n" +
             "    <div class=\"container\">\n" +
-            "        <h1>Club <span>Leadership Assignment</span></h1>\n" +
+            "        <h1>Organization <span>Leadership Assignment</span></h1>\n" +
             "        <p>Hello %s,</p>\n" +
-            "        <p>We are excited to inform you that you have been assigned as the <strong>%s</strong> of the official club <strong>%s</strong>.</p>\n" +
+            "        <p>We are excited to inform you that you have been assigned as the <strong>%s</strong> of the official %s <strong>%s</strong>.</p>\n" +
             "        <div class=\"highlight-box\">\n" +
             "            <p>Role: %s</p>\n" +
-            "            <p>Club: %s</p>\n" +
+            "            <p>Organization: %s</p>\n" +
             "            <p>Assigned privileges: Manage Events, Manage Members, Manage Settings, Posts, and Memories.</p>\n" +
             "        </div>\n" +
-            "        <p>Please log in to the CAX Mobile App or Web Console to begin managing your club.</p>\n" +
+            "        <p>Please log in to the CAX Mobile App or Web Console to begin managing your organization.</p>\n" +
             "        <div class=\"footer\">\n" +
             "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your leadership assignment.</p>\n" +
             "        </div>\n" +
@@ -329,9 +332,10 @@ public class EmailService {
             "</html>",
             name,
             role,
-            clubName,
+            orgTypeLabel,
+            orgName,
             role,
-            clubName
+            orgName
         );
 
         try {
@@ -344,7 +348,7 @@ public class EmailService {
             helper.setText(htmlContent, true);
 
             mailSender.send(message);
-            log.info("Leadership assignment email successfully sent to {} for club {}", to, clubName);
+            log.info("Leadership assignment email successfully sent to {} for organization {}", to, orgName);
         } catch (MessagingException e) {
             log.error("Failed to send leadership assignment email to {}: ", to, e);
         } catch (Exception e) {

@@ -633,7 +633,14 @@ public class EventService {
                 .registeredAt(Instant.now())
                 .build();
 
-        return decryptParticipant(eventParticipantRepository.save(participant));
+        try {
+            return decryptParticipant(eventParticipantRepository.save(participant));
+        } catch (DuplicateKeyException e) {
+            // Two concurrent requests both passed the existsBy check above; the unique
+            // (eventId, userId) index rejected the second insert. Surface a friendly
+            // error instead of a raw 500 rather than leaving a duplicate record behind.
+            throw new BusinessException.BadRequestException("You are already registered for this event.");
+        }
     }
 
     private String trimToNull(Object value) {
@@ -1242,7 +1249,22 @@ public class EventService {
                 .timestamp(Instant.now())
                 .build());
 
-        return decryptParticipant(eventParticipantRepository.save(participant));
+        try {
+            return decryptParticipant(eventParticipantRepository.save(participant));
+        } catch (org.springframework.dao.OptimisticLockingFailureException e) {
+            // Another request (e.g. a duplicate Razorpay success callback) verified this
+            // same participant between our read and write. The @Version field caught it
+            // before we could double-apply the payment. If that other request already
+            // confirmed this exact payment, treat this call as a no-op success instead
+            // of double-processing or erroring out.
+            EventParticipant current = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId)
+                    .orElseThrow(() -> e);
+            if ("VERIFIED".equals(current.getStatus()) && razorpayPaymentId.equals(current.getRazorpayPaymentId())) {
+                return decryptParticipant(current);
+            }
+            throw new BusinessException.BadRequestException(
+                    "This payment is already being processed. Please refresh and try again.");
+        }
     }
 
     private EventParticipant decryptParticipant(EventParticipant p) {

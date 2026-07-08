@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -24,6 +25,11 @@ import java.util.List;
 public class EventParticipant {
     @Id
     private String id;
+
+    // Optimistic lock: guards against two concurrent updates (e.g. a duplicate
+    // Razorpay success callback) silently overwriting each other's status change.
+    @Version
+    private Long version;
 
     @Indexed
     private String eventId;

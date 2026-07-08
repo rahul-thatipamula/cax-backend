@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.cax.cax_backend.common.exception.BaseException;
+import com.cax.cax_backend.common.util.EmailDomainUtils;
 import com.cax.cax_backend.common.util.JwtUtil;
 import com.cax.cax_backend.settings.service.SystemSettingService;
 import com.cax.cax_backend.user.service.UserActivityService;
@@ -101,9 +102,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     boolean isPlayStoreTesting = systemSettingService.isPlayStoreTestingEnabled();
 
                     if (!isPlayStoreTesting && !isBypassEmail && !isExistingAdmin) {
-                        boolean isAcademicDomain = domain.endsWith(".edu")
-                                || domain.endsWith(".ac.in")
-                                || domain.endsWith(".edu.in");
+                        boolean isAcademicDomain = !EmailDomainUtils.isPersonalEmailDomain(domain);
                         if (!isAcademicDomain) {
                             log.warn("Blocked request to {} from non-academic email: {} for user: {}", path, email, userId);
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);

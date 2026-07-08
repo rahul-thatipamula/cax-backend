@@ -2,6 +2,7 @@ package com.cax.cax_backend.thought.controller;
 
 import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.common.exception.AuthException;
+import com.cax.cax_backend.common.util.EmailDomainUtils;
 import com.cax.cax_backend.settings.service.SystemSettingService;
 import com.cax.cax_backend.thought.dto.ReportedThoughtDetailDto;
 import com.cax.cax_backend.thought.dto.ThoughtImageRequest;
@@ -265,6 +266,6 @@ public class ThoughtController {
         if (email == null) return false;
         int at = email.indexOf('@');
         String domain = at != -1 ? email.substring(at + 1) : "";
-        return !domain.endsWith(".edu") && !domain.endsWith(".ac.in") && !domain.endsWith(".edu.in");
+        return EmailDomainUtils.isPersonalEmailDomain(domain);
     }
 }
