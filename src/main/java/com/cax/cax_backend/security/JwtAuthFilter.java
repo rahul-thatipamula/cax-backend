@@ -167,6 +167,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 || path.equals("/api/auth/report-wrong-college")
                 || path.equals("/api/auth/generate-test-token")
                 || path.equals("/api/auth/refresh")
+                || path.equals("/api/admin/auth/google")
+                || path.equals("/api/admin/auth/dev-login")
                 || path.startsWith("/api/auth/qr/")
                 || path.equals("/api/auth/2fa/login-verify")
                 || path.startsWith("/api/version/")

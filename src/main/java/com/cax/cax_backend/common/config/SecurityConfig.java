@@ -35,6 +35,8 @@ public class SecurityConfig {
                                 "/api/auth/report-wrong-college",
                                 "/api/auth/generate-test-token",
                                 "/api/auth/refresh",
+                                "/api/admin/auth/google",
+                                "/api/admin/auth/dev-login",
                                 "/api/auth/qr/**",
                                 "/api/auth/2fa/login-verify",
                                 "/api/version/**",
