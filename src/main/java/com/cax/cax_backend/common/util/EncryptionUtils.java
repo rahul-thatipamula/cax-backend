@@ -3,10 +3,12 @@ package com.cax.cax_backend.common.util;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.crypto.Cipher;
+import javax.crypto.Mac;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -118,6 +120,25 @@ public class EncryptionUtils {
             return Base64.getEncoder().encodeToString(hash);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 hashing failed", e);
+        }
+    }
+
+    /**
+     * Keyed hash (HMAC-SHA256) for low-entropy identifiers such as student ID
+     * numbers. Unlike {@link #hashSHA256}, this cannot be brute-forced offline
+     * without the server-side secret key — a plain hash would be reversible
+     * for short/predictable ID formats via dictionary attack.
+     */
+    public static String hmacSHA256(String value) {
+        if (value == null) return null;
+        requireInitialized();
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secretKey, "HmacSHA256"));
+            byte[] hash = mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new RuntimeException("HMAC-SHA256 hashing failed", e);
         }
     }
 }

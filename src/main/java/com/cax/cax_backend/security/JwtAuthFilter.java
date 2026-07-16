@@ -10,9 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.cax.cax_backend.common.exception.BaseException;
-import com.cax.cax_backend.common.util.EmailDomainUtils;
 import com.cax.cax_backend.common.util.JwtUtil;
-import com.cax.cax_backend.settings.service.SystemSettingService;
 import com.cax.cax_backend.user.service.UserActivityService;
 
 import io.jsonwebtoken.Claims;
@@ -34,7 +32,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserActivityService userActivityService;
-    private final SystemSettingService systemSettingService;
 
     /** Extracts a JWT from the Bearer header, falling back to the access_token cookie.
      *  Bearer tokens that are blank or clearly not a JWT (no dots) are skipped so that
@@ -88,31 +85,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             String role = claims.get("role", String.class);
             Boolean isAdmin = claims.get("isAdmin", Boolean.class);
-            // Enforce academic email requirement on all authenticated requests (except public paths and bypasses)
-            String path = request.getRequestURI();
-            if (!isPublicPath(path)) {
-                String email = claims.get("email", String.class);
-                if (email != null && !email.isBlank()) {
-                    int atIndex = email.indexOf('@');
-                    String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
-
-                    boolean isBypassEmail = "rahulthatipamula97@gmail.com".equalsIgnoreCase(email);
-                    boolean isExistingAdmin = "admin".equalsIgnoreCase(role)
-                            || Boolean.TRUE.equals(isAdmin);
-                    boolean isPlayStoreTesting = systemSettingService.isPlayStoreTestingEnabled();
-
-                    if (!isPlayStoreTesting && !isBypassEmail && !isExistingAdmin) {
-                        boolean isAcademicDomain = !EmailDomainUtils.isPersonalEmailDomain(domain);
-                        if (!isAcademicDomain) {
-                            log.warn("Blocked request to {} from non-academic email: {} for user: {}", path, email, userId);
-                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                            response.setContentType("application/json");
-                            response.getWriter().write("{\"success\":false,\"message\":\"Only college email logins are permitted.\",\"errorCode\":403,\"statusCode\":403}");
-                            return;
-                        }
-                    }
-                }
-            }
+            // Personal-email accounts are no longer blocked here: they sign in
+            // through the manual ID-card verification track, and access gating
+            // is enforced via user verification state (idVerified /
+            // manualVerificationStatus), not by email domain.
             String appVersion = request.getHeader("X-App-Version");
             String buildNumberStr = request.getHeader("X-Build-Number");
             int buildNumber = 0;
@@ -160,23 +136,4 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 || path.startsWith("/v3/api-docs");
     }
 
-    private boolean isPublicPath(String path) {
-        return path.equals("/health")
-                || path.equals("/api/auth/google")
-                || path.equals("/api/auth/preview-college")
-                || path.equals("/api/auth/report-wrong-college")
-                || path.equals("/api/auth/generate-test-token")
-                || path.equals("/api/auth/refresh")
-                || path.equals("/api/admin/auth/google")
-                || path.equals("/api/admin/auth/dev-login")
-                || path.startsWith("/api/auth/qr/")
-                || path.equals("/api/auth/2fa/login-verify")
-                || path.startsWith("/api/version/")
-                || path.equals("/api/colleges")
-                || path.equals("/api/newsletter/subscribe")
-                || (path.startsWith("/api/ads/") && path.endsWith("/click"))
-                || path.startsWith("/swagger-ui")
-                || path.equals("/swagger-ui.html")
-                || path.startsWith("/v3/api-docs");
-    }
 }

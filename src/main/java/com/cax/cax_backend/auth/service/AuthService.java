@@ -108,13 +108,18 @@ public class AuthService {
 
             boolean isPersonalDomain = isPersonalEmailDomain(domain);
 
+            // Personal-email users are no longer blocked: they log in and go
+            // through the manual ID-card verification track instead.
+            boolean manualVerificationTrack = false;
             College matchedCollege;
             if (!isAdmin && isPersonalDomain) {
                 if (systemSettingService.isPlayStoreTestingEnabled()) {
                     matchedCollege = getOrCreateCAXoneCollege();
                     log.info("Play Store testing: personal email '{}' assigned to CAXone College", email);
                 } else {
-                    throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
+                    matchedCollege = null;
+                    manualVerificationTrack = true;
+                    log.info("Personal email '{}' logging in via manual-verification track", email);
                 }
             } else {
                 matchedCollege = findMatchedCollege(domain);
@@ -143,6 +148,10 @@ public class AuthService {
                         .lastSeenAt(Instant.now());
 
                 user = userBuilder.build();
+                if (manualVerificationTrack) {
+                    user.setVerificationMethod(User.VerificationMethod.MANUAL_ID_CARD);
+                    user.setManualVerificationStatus("NOT_SUBMITTED");
+                }
                 boolean collegeAssigned = updateCollegeDetailsIfMatched(user, matchedCollege);
                 if (collegeAssigned) {
                     log.info("Auto-assigned college '{}' to new user: {}", matchedCollege.getCollegeName(), user.getUserId());
@@ -164,6 +173,14 @@ public class AuthService {
                     user.setPicture(picture);
                 }
 
+                if (manualVerificationTrack && user.getVerificationMethod() == null) {
+                    // Legacy personal-email account (created before the manual track
+                    // existed, e.g. via testing mode) — pull it onto the manual track.
+                    user.setVerificationMethod(User.VerificationMethod.MANUAL_ID_CARD);
+                    if (user.getManualVerificationStatus() == null) {
+                        user.setManualVerificationStatus(user.isIdVerified() ? "APPROVED" : "NOT_SUBMITTED");
+                    }
+                }
                 boolean collegeHealed = updateCollegeDetailsIfMatched(user, matchedCollege);
                 if (collegeHealed) {
                     log.info("Auto-healed college '{}' for existing user: {}", matchedCollege.getCollegeName(), user.getUserId());
@@ -285,15 +302,13 @@ public class AuthService {
         String domain = atIndex != -1 ? email.substring(atIndex + 1) : "";
         boolean isAdmin = user.getRole() == UserRole.ADMIN;
         boolean isCAXone = systemSettingService.isPlayStoreTestingEnabled() && isCAXoneUser(user);
-
-        if (!isAdmin && !isCAXone) {
-            if (isPersonalEmailDomain(domain)) {
-                throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
-            }
-        }
+        // Personal-email accounts go through the manual ID-card track; they are
+        // allowed in but stay unverified until an admin approves their ID card.
+        boolean isManualTrack = user.getVerificationMethod() == User.VerificationMethod.MANUAL_ID_CARD
+                || isPersonalEmailDomain(domain);
 
         user = getUserAndHealIfVerified(user);
-        if (!isAdmin && !isCAXone && !hasCollegeDetails(user)) {
+        if (!isAdmin && !isCAXone && !isManualTrack && !hasCollegeDetails(user)) {
             throw new AuthException.ForbiddenException("College details not added yet. We haven't registered your college email domain on CAX yet.");
         }
         return user;
@@ -472,18 +487,8 @@ public class AuthService {
                 user.getRefreshTokens().remove(tokenHash);
             }
 
-            // Block personal-email users from silently refreshing past the domain gate
-            String userEmail = user.getEmail() != null ? user.getEmail().toLowerCase().trim() : "";
-            int atIdx = userEmail.indexOf('@');
-            String userDomain = atIdx != -1 ? userEmail.substring(atIdx + 1) : "";
-            boolean isAdmin = user.getRole() == UserRole.ADMIN;
-            boolean isCAXone = systemSettingService.isPlayStoreTestingEnabled() && isCAXoneUser(user);
-            if (!isAdmin && !isCAXone) {
-                if (isPersonalEmailDomain(userDomain)) {
-                    throw new AuthException.ForbiddenException("Only college email logins are permitted. Please use your official college email.");
-                }
-            }
-
+            // Personal-email users refresh normally — verification gating is handled
+            // through the manual ID-card track, not by blocking the session.
             boolean hasElevatedAccess = user.getRole() == UserRole.ADMIN || (user.getRole() == UserRole.SUPER_STUDENT && user.isIdVerified());
             String newAccessToken = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess, user.getCreatedAt());
             String newRefreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail(), user.getRole().getValue(), hasElevatedAccess);
@@ -716,6 +721,7 @@ public class AuthService {
             }
             user.setUpdatedAt(Instant.now());
             user.setIdVerified(true);
+            user.setVerificationMethod(User.VerificationMethod.DOMAIN_MATCH);
             if (user.getCaxId() == null || user.getCaxId().isEmpty()) {
                 user.setCaxId(generateUniqueCaxId());
             }
@@ -737,11 +743,22 @@ public class AuthService {
         if (!user.isAcceptedTerms()) {
             redirect = "/terms-acceptance";
             message = "Terms acceptance required.";
+        } else if (isPendingManualVerification(user)) {
+            redirect = "/manual-verification";
+            message = "Student ID verification required.";
         } else {
             redirect = "/app";
             message = "Login Successful.";
         }
         return Map.of("redirect", redirect, "message", message);
+    }
+
+    /** Manual-track user who isn't (or is no longer) verified. */
+    private boolean isPendingManualVerification(User user) {
+        if (user.getRole() == UserRole.ADMIN) return false;
+        if (user.getVerificationMethod() != User.VerificationMethod.MANUAL_ID_CARD) return false;
+        // REVERIFY_REQUIRED users keep full access during the grace period.
+        return !user.isIdVerified();
     }
 
     private User getUserAndHealIfVerified(User user) {

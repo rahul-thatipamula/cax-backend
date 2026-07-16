@@ -104,6 +104,23 @@ public class User {
     private String studentIdUrl;
     private Instant verificationSubmittedAt;
 
+    // How this account got verified: DOMAIN_MATCH (college email) or
+    // MANUAL_ID_CARD (admin-reviewed ID upload). Null for legacy accounts,
+    // which are treated as DOMAIN_MATCH.
+    private VerificationMethod verificationMethod;
+
+    // Manual-track routing state mirrored from the latest manualVerifications
+    // record so the mobile app can route from /auth/user alone:
+    // NOT_SUBMITTED, PENDING, APPROVED, REJECTED, REVERIFY_REQUIRED, EXPIRED
+    private String manualVerificationStatus;
+
+    // For MANUAL_ID_CARD accounts: approval is valid until the next July 19.
+    private Instant verificationValidUntil;
+
+    public enum VerificationMethod {
+        DOMAIN_MATCH, MANUAL_ID_CARD
+    }
+
     private String appVersion;
     private int buildNumber;
 

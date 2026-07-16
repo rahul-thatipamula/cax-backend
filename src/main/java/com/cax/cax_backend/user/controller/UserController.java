@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.common.annotation.AdminActivityLog;
+import com.cax.cax_backend.manualverification.service.ManualVerificationService;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
 
@@ -28,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 public class UserController {
 
     private final UserService userService;
+    private final ManualVerificationService manualVerificationService;
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<User>>> searchUsers(
@@ -99,6 +101,19 @@ public class UserController {
             Authentication auth) {
         checkAdmin(auth);
         return ResponseEntity.ok(ApiResponse.success(userService.blockUser(userId, blocked, reason)));
+    }
+
+    /** Force a manually-verified user to re-upload their student ID (fraud/compromised-ID cases), outside the yearly cycle. */
+    @PostMapping("/{userId}/reverify")
+    @AdminActivityLog(action = "Request Re-verification", resourceIdParam = "userId")
+    public ResponseEntity<ApiResponse<User>> requestReverification(
+            @PathVariable String userId,
+            @RequestParam(required = false) String reason,
+            Authentication auth) {
+        String adminId = getCallerId(auth);
+        checkAdmin(auth);
+        manualVerificationService.requestReverification(userId, adminId, reason);
+        return ResponseEntity.ok(ApiResponse.success(userService.getUserByUserId(userId)));
     }
 
     @GetMapping("/premium")
