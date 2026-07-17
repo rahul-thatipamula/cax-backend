@@ -83,6 +83,17 @@ public class EventParticipant {
 
     private String ticketCode;
 
+    /** Team this participant belongs to (null for individual registrations). */
+    @Indexed
+    private String teamId;
+
+    /** Denormalized team name so organizer lists render without a team lookup. */
+    private String teamName;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("isTeamLeader")
+    @Builder.Default
+    private boolean isTeamLeader = false;
+
     @Builder.Default
     private boolean checkedIn = false;
 

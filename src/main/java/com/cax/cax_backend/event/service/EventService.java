@@ -20,8 +20,10 @@ import com.cax.cax_backend.event.event.EventCreatedEvent;
 import com.cax.cax_backend.event.event.EventRegistrationReviewedEvent;
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.event.model.EventParticipant;
+import com.cax.cax_backend.event.model.EventTeam;
 import com.cax.cax_backend.event.repository.EventParticipantRepository;
 import com.cax.cax_backend.event.repository.EventRepository;
+import com.cax.cax_backend.event.repository.EventTeamRepository;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
 import com.cax.cax_backend.user.repository.UserRepository;
@@ -45,6 +47,7 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final EventParticipantRepository eventParticipantRepository;
+    private final EventTeamRepository eventTeamRepository;
     private final OrganizationService organizationService;
     private final UserService userService;
     private final com.cax.cax_backend.college.repository.CollegeRepository collegeRepository;
@@ -104,6 +107,38 @@ public class EventService {
         eventData.setUpiQrCode(null);
         eventData.setIdCardRequired(false);
         eventData.setRequiredFields(new java.util.ArrayList<>());
+        // Registration happens off-platform, so team formation is not applicable.
+        eventData.setParticipationType("INDIVIDUAL");
+    }
+
+    private void validateTeamSettings(Event eventData) {
+        String type = eventData.getParticipationType();
+        if (type == null || type.isBlank()) {
+            eventData.setParticipationType("INDIVIDUAL");
+            return;
+        }
+        if (!"INDIVIDUAL".equals(type) && !"TEAM".equals(type) && !"BOTH".equals(type)) {
+            throw new BusinessException.BadRequestException(
+                    "participationType must be INDIVIDUAL, TEAM, or BOTH.");
+        }
+        if ("INDIVIDUAL".equals(type)) return;
+
+        if (eventData.getMinTeamSize() < 2) {
+            throw new BusinessException.BadRequestException("Minimum team size must be at least 2.");
+        }
+        if (eventData.getMaxTeamSize() < eventData.getMinTeamSize()) {
+            throw new BusinessException.BadRequestException(
+                    "Maximum team size cannot be smaller than the minimum team size.");
+        }
+        if (eventData.getMaxTeamSize() > 50) {
+            throw new BusinessException.BadRequestException("Maximum team size cannot exceed 50.");
+        }
+        String feeType = eventData.getTeamFeeType();
+        if (feeType == null || feeType.isBlank()) {
+            eventData.setTeamFeeType("PER_PERSON");
+        } else if (!"PER_PERSON".equals(feeType) && !"PER_TEAM".equals(feeType)) {
+            throw new BusinessException.BadRequestException("teamFeeType must be PER_PERSON or PER_TEAM.");
+        }
     }
 
     public Event createEvent(String userId, String organizationId, Event eventData) {
@@ -133,6 +168,7 @@ public class EventService {
         }
 
         enforceExternallyManagedConstraints(eventData);
+        validateTeamSettings(eventData);
 
         eventData.setOrganizationId(organizationId);
         eventData.setCollegeId(organization.getCollegeId());
@@ -439,8 +475,45 @@ public class EventService {
         }
         result.put("participantStatus", status);
 
+        // The caller's own registration record (ticket, team, payment state) so
+        // non-manager participants can render their ticket without the
+        // manager-only participants endpoint.
+        participant.ifPresent(p -> result.put("myParticipant", decryptParticipant(p)));
+
+        // Include the user's team (with member summaries) so the detail screen
+        // renders the "My Team" card without a second round trip.
+        participant.filter(p -> p.getTeamId() != null).ifPresent(p ->
+                eventTeamRepository.findById(p.getTeamId()).ifPresent(team ->
+                        result.put("myTeam", buildTeamPayload(event, team))));
 
         return result;
+    }
+
+    /** Team document plus a lightweight member list, as sent to clients. */
+    Map<String, Object> buildTeamPayload(Event event, EventTeam team) {
+        List<EventParticipant> members = eventParticipantRepository
+                .findByEventIdAndTeamId(event.getId(), team.getId());
+        List<Map<String, Object>> memberSummaries = members.stream()
+                .sorted(java.util.Comparator.comparing(EventParticipant::isTeamLeader).reversed())
+                .map(m -> {
+                    Map<String, Object> s = new HashMap<>();
+                    s.put("participantId", m.getId());
+                    s.put("userId", m.getUserId());
+                    s.put("name", decryptParticipant(m).getName());
+                    s.put("picture", m.getPicture());
+                    s.put("status", m.getStatus());
+                    s.put("checkedIn", m.isCheckedIn());
+                    s.put("isTeamLeader", m.isTeamLeader());
+                    return s;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("team", team);
+        payload.put("members", memberSummaries);
+        payload.put("minTeamSize", event.getMinTeamSize());
+        payload.put("maxTeamSize", event.getMaxTeamSize());
+        return payload;
     }
 
     public List<Event> discoverEvents(String userId) {
@@ -543,6 +616,30 @@ public class EventService {
                     "This event is managed externally. Please register via the provided external link.");
         }
 
+        if ("TEAM".equals(event.getParticipationType())) {
+            throw new BusinessException.BadRequestException(
+                    "This event only accepts team registrations. Create a team or join one with a team code.");
+        }
+
+        EventParticipant participant = buildParticipant(userId, event, idCardDetails);
+
+        try {
+            return decryptParticipant(eventParticipantRepository.save(participant));
+        } catch (DuplicateKeyException e) {
+            // Two concurrent requests both passed the existsBy check above; the unique
+            // (eventId, userId) index rejected the second insert. Surface a friendly
+            // error instead of a raw 500 rather than leaving a duplicate record behind.
+            throw new BusinessException.BadRequestException("You are already registered for this event.");
+        }
+    }
+
+    /**
+     * Runs every registration-time check (event open, not already registered,
+     * college restriction, required fields) and returns an unsaved participant.
+     * Shared by individual registration and team create/join flows.
+     */
+    EventParticipant buildParticipant(String userId, Event event, Map<String, Object> idCardDetails) {
+        String eventId = event.getId();
 
         if (!"ACTIVE".equals(event.getStatus())) {
             throw new BusinessException.BadRequestException("This event is no longer accepting registrations.");
@@ -625,7 +722,7 @@ public class EventService {
 
         String initialStatus = event.isPaid() ? "PENDING_PAYMENT" : "PENDING_APPROVAL";
 
-        EventParticipant participant = EventParticipant.builder()
+        return EventParticipant.builder()
                 .eventId(eventId)
                 .userId(userId)
                 .name(user.getName())
@@ -646,15 +743,6 @@ public class EventService {
                 .status(initialStatus)
                 .registeredAt(Instant.now())
                 .build();
-
-        try {
-            return decryptParticipant(eventParticipantRepository.save(participant));
-        } catch (DuplicateKeyException e) {
-            // Two concurrent requests both passed the existsBy check above; the unique
-            // (eventId, userId) index rejected the second insert. Surface a friendly
-            // error instead of a raw 500 rather than leaving a duplicate record behind.
-            throw new BusinessException.BadRequestException("You are already registered for this event.");
-        }
     }
 
     private String trimToNull(Object value) {
@@ -678,6 +766,11 @@ public class EventService {
         EventParticipant participant = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new BusinessException.BadRequestException("You are not registered for this event."));
 
+        if (isTeamFeeButNotLeader(event, participant)) {
+            throw new BusinessException.BadRequestException(
+                    "The team fee for this event is paid once by your team leader.");
+        }
+
         if (!"PENDING_PAYMENT".equals(participant.getStatus()) && !"REJECTED".equals(participant.getStatus())) {
             throw new BusinessException.BadRequestException("Payment submission is not allowed in current status: " + participant.getStatus());
         }
@@ -700,6 +793,28 @@ public class EventService {
 
         return decryptParticipant(eventParticipantRepository.save(participant));
     }
+
+    public void cancelRegistration(String userId, String eventId) {
+        Event event = getEventById(eventId);
+        if (event.isExternallyManaged()) {
+            throw new BusinessException.BadRequestException("Registration cannot be cancelled for externally managed events.");
+        }
+
+        EventParticipant participant = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("EventParticipant for user " + userId + " on event " + eventId + " not found"));
+
+        if (participant.getTeamId() != null) {
+            throw new BusinessException.BadRequestException("Cannot cancel registration because you are part of a team. Please leave the team instead.");
+        }
+
+        String status = participant.getStatus();
+        if (!"PENDING_PAYMENT".equals(status) && !"PENDING_APPROVAL".equals(status) && !"REJECTED".equals(status)) {
+            throw new BusinessException.BadRequestException("Cannot cancel registration in current status: " + status);
+        }
+
+        eventParticipantRepository.delete(participant);
+    }
+
 
     public EventParticipant verifyPayment(String organizerId, String eventId, String participantId, boolean approved) {
         Event event = getEventById(eventId);
@@ -725,8 +840,11 @@ public class EventService {
             throw new BusinessException.BadRequestException("Participant is not in a verifiable status: " + currentStatus);
         }
 
-        if (approved && (participant.getTicketCode() == null || participant.getTicketCode().isEmpty())) {
-            participant.setTicketCode("CAX-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        // Team members only receive tickets once their team is COMPLETE (handled
+        // by recomputeTeamCompletion below); individuals get theirs immediately.
+        if (approved && participant.getTeamId() == null
+                && (participant.getTicketCode() == null || participant.getTicketCode().isEmpty())) {
+            participant.setTicketCode(newTicketCode());
         }
         participant.setStatus(approved ? "VERIFIED" : "REJECTED");
         participant.setVerifiedByUserId(organizerId);
@@ -765,7 +883,119 @@ public class EventService {
         } catch (Exception e) {
             log.error("Failed to publish EventRegistrationReviewedEvent for participant: {}", participantId, e);
         }
+
+        if (saved.getTeamId() != null) {
+            saved = applyTeamEffectsAfterVerification(event, saved, approved);
+        }
         return decryptParticipant(saved);
+    }
+
+    // ========================================================================
+    // TEAM SUPPORT
+    // ========================================================================
+
+    String newTicketCode() {
+        return "CAX-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    /** True when the event charges one fee per team and this member is not the leader. */
+    private boolean isTeamFeeButNotLeader(Event event, EventParticipant participant) {
+        return participant.getTeamId() != null
+                && "PER_TEAM".equals(event.getTeamFeeType())
+                && !participant.isTeamLeader();
+    }
+
+    /**
+     * Runs after a team member's status changed to VERIFIED/REJECTED:
+     * cascades a PER_TEAM leader verification to all teammates, then re-evaluates
+     * team completion and issues tickets. Returns the participant re-read from
+     * the DB so a ticket assigned during the recompute is reflected.
+     */
+    private EventParticipant applyTeamEffectsAfterVerification(
+            Event event, EventParticipant saved, boolean approved) {
+        Optional<EventTeam> teamOpt = eventTeamRepository.findById(saved.getTeamId());
+        if (teamOpt.isEmpty()) {
+            log.warn("Participant {} references missing team {}", saved.getId(), saved.getTeamId());
+            return saved;
+        }
+        EventTeam team = teamOpt.get();
+
+        if (approved && "PER_TEAM".equals(event.getTeamFeeType()) && saved.isTeamLeader()) {
+            cascadeTeamPaymentVerification(event, team, saved);
+        }
+
+        recomputeTeamCompletion(event, team);
+        return eventParticipantRepository.findById(saved.getId()).orElse(saved);
+    }
+
+    /**
+     * The leader's PER_TEAM payment was verified: mark the team paid and verify
+     * every teammate still waiting on it.
+     */
+    private void cascadeTeamPaymentVerification(Event event, EventTeam team, EventParticipant leader) {
+        if (!"VERIFIED".equals(team.getPaymentStatus())) {
+            team.setPaymentStatus("VERIFIED");
+            team.setUpdatedAt(Instant.now());
+            eventTeamRepository.save(team);
+        }
+
+        List<EventParticipant> members = eventParticipantRepository.findByEventIdAndTeamId(event.getId(), team.getId());
+        for (EventParticipant member : members) {
+            if (member.getId().equals(leader.getId())) continue;
+            String s = member.getStatus();
+            if (!"PENDING_PAYMENT".equals(s) && !"PAYMENT_SUBMITTED".equals(s) && !"PENDING_APPROVAL".equals(s)) {
+                continue;
+            }
+            member.setStatus("VERIFIED");
+            member.setVerifiedByUserId(leader.getVerifiedByUserId());
+            member.setVerifiedByName(leader.getVerifiedByName());
+            member.setVerifiedByOrganizationId(leader.getVerifiedByOrganizationId());
+            member.setVerifiedByOrganizationName(leader.getVerifiedByOrganizationName());
+            member.setVerifiedAt(Instant.now());
+            if (member.getPaymentHistory() == null) {
+                member.setPaymentHistory(new java.util.ArrayList<>());
+            }
+            member.getPaymentHistory().add(EventParticipant.PaymentHistoryEntry.builder()
+                    .status("VERIFIED")
+                    .timestamp(Instant.now())
+                    .verifiedByUserId(leader.getVerifiedByUserId())
+                    .verifiedByName(leader.getVerifiedByName())
+                    .verifiedByOrganizationId(leader.getVerifiedByOrganizationId())
+                    .verifiedByOrganizationName(leader.getVerifiedByOrganizationName())
+                    .build());
+            eventParticipantRepository.save(member);
+            try {
+                eventPublisher.publishEvent(new EventRegistrationReviewedEvent(this, member, event));
+            } catch (Exception e) {
+                log.error("Failed to publish review event for team member {}", member.getId(), e);
+            }
+        }
+    }
+
+    /**
+     * Promotes a FORMING team to COMPLETE once it has minTeamSize non-rejected
+     * members, and issues tickets to every VERIFIED member of a COMPLETE team
+     * that doesn't have one yet (tickets are held back until completion).
+     */
+    void recomputeTeamCompletion(Event event, EventTeam team) {
+        List<EventParticipant> members = eventParticipantRepository.findByEventIdAndTeamId(event.getId(), team.getId());
+        long activeCount = members.stream().filter(m -> !"REJECTED".equals(m.getStatus())).count();
+
+        if ("FORMING".equals(team.getStatus()) && activeCount >= event.getMinTeamSize()) {
+            team.setStatus("COMPLETE");
+            team.setUpdatedAt(Instant.now());
+            team = eventTeamRepository.save(team);
+        }
+
+        if (!"COMPLETE".equals(team.getStatus())) return;
+
+        for (EventParticipant member : members) {
+            if ("VERIFIED".equals(member.getStatus())
+                    && (member.getTicketCode() == null || member.getTicketCode().isEmpty())) {
+                member.setTicketCode(newTicketCode());
+                eventParticipantRepository.save(member);
+            }
+        }
     }
 
     public List<EventParticipant> getParticipants(String userId, String eventId) {
@@ -782,7 +1012,13 @@ public class EventService {
 
         StringBuilder csv = new StringBuilder();
         // CSV Header
-        csv.append("Registration ID,Participant Name,Email Address,College Affiliation,ID Card Number,Name On ID Card,Department,Gender,Date of Birth,Phone Number,Custom College Name,Custom Department,Register Number,Year of Study,Registration Date,Ticket Status,Ticket Code,Amount Paid (INR),UTR Number,Checked In,Checked In Time,Suspicious,Suspicious Note\n");
+        csv.append("Registration ID,Participant Name,Email Address,College Affiliation,ID Card Number,Name On ID Card,Department,Gender,Date of Birth,Phone Number,Custom College Name,Custom Department,Register Number,Year of Study,Registration Date,Ticket Status,Ticket Code,Amount Paid (INR),UTR Number,Checked In,Checked In Time,Suspicious,Suspicious Note,Team Name,Team Role\n");
+
+        // Teams export grouped together, individuals after.
+        participants = participants.stream()
+                .sorted(java.util.Comparator.comparing(
+                        p -> p.getTeamName() == null ? "￿" : p.getTeamName()))
+                .collect(Collectors.toList());
 
         for (EventParticipant p : participants) {
             csv.append(escapeCsv(p.getId())).append(",")
@@ -807,7 +1043,9 @@ public class EventService {
                .append(p.isCheckedIn() ? "Yes" : "No").append(",")
                .append(escapeCsv(p.getCheckedInAt() != null ? p.getCheckedInAt().toString() : "")).append(",")
                .append(p.isSuspicious() ? "Yes" : "No").append(",")
-               .append(escapeCsv(p.getSuspiciousNote())).append("\n");
+               .append(escapeCsv(p.getSuspiciousNote())).append(",")
+               .append(escapeCsv(p.getTeamName())).append(",")
+               .append(p.getTeamId() == null ? "" : (p.isTeamLeader() ? "Leader" : "Member")).append("\n");
         }
 
         return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -918,6 +1156,15 @@ public class EventService {
         if (event.isExternallyManaged()) {
             throw new BusinessException.BadRequestException(
                     "Check-in is not applicable for externally managed events.");
+        }
+
+        if ("CANCELLED".equals(event.getStatus())) {
+            throw new BusinessException.BadRequestException(
+                    "This event has been cancelled — check-in is disabled.");
+        }
+        if ("COMPLETED".equals(event.getStatus())) {
+            throw new BusinessException.BadRequestException(
+                    "This event is completed — check-in is closed.");
         }
 
         EventParticipant participant = eventParticipantRepository.findByEventIdAndTicketCode(eventId, ticketCode)
@@ -1210,6 +1457,11 @@ public class EventService {
         EventParticipant participant = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new BusinessException.BadRequestException("You are not registered for this event."));
 
+        if (isTeamFeeButNotLeader(event, participant)) {
+            throw new BusinessException.BadRequestException(
+                    "The team fee for this event is paid once by your team leader.");
+        }
+
         if (!"PENDING_PAYMENT".equals(participant.getStatus()) && !"REJECTED".equals(participant.getStatus())) {
             throw new BusinessException.BadRequestException(
                     "Razorpay payment not allowed in current status: " + participant.getStatus());
@@ -1258,8 +1510,10 @@ public class EventService {
         participant.setStatus("VERIFIED");
         participant.setVerifiedAt(Instant.now());
 
-        if (participant.getTicketCode() == null || participant.getTicketCode().isEmpty()) {
-            participant.setTicketCode("CAX-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        // Team members receive tickets only when their team is COMPLETE.
+        if (participant.getTeamId() == null
+                && (participant.getTicketCode() == null || participant.getTicketCode().isEmpty())) {
+            participant.setTicketCode(newTicketCode());
         }
 
         if (participant.getPaymentHistory() == null) {
@@ -1272,7 +1526,11 @@ public class EventService {
                 .build());
 
         try {
-            return decryptParticipant(eventParticipantRepository.save(participant));
+            EventParticipant saved = eventParticipantRepository.save(participant);
+            if (saved.getTeamId() != null) {
+                saved = applyTeamEffectsAfterVerification(event, saved, true);
+            }
+            return decryptParticipant(saved);
         } catch (org.springframework.dao.OptimisticLockingFailureException e) {
             // Another request (e.g. a duplicate Razorpay success callback) verified this
             // same participant between our read and write. The @Version field caught it
@@ -1289,7 +1547,7 @@ public class EventService {
         }
     }
 
-    private EventParticipant decryptParticipant(EventParticipant p) {
+    EventParticipant decryptParticipant(EventParticipant p) {
         if (p == null) return null;
         if (p.getName() != null) {
             try {

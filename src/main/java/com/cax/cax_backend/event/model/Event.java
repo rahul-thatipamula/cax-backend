@@ -81,6 +81,31 @@ public class Event {
     @Builder.Default
     private List<String> requiredFields = new java.util.ArrayList<>();
 
+    /**
+     * How people join this event.
+     * INDIVIDUAL — solo registrations only (default; all pre-existing events).
+     * TEAM       — team registrations only (create a team or join with a code).
+     * BOTH       — solo and team registrations both allowed.
+     */
+    @Builder.Default
+    private String participationType = "INDIVIDUAL";
+
+    /** Minimum members for a team to be COMPLETE. Only meaningful for TEAM/BOTH. */
+    @Builder.Default
+    private int minTeamSize = 2;
+
+    /** Maximum members allowed in a team. Only meaningful for TEAM/BOTH. */
+    @Builder.Default
+    private int maxTeamSize = 4;
+
+    /**
+     * For paid TEAM/BOTH events: PER_PERSON — every member pays `fee`;
+     * PER_TEAM — the team leader pays `fee` once for the whole team
+     * (solo joiners on BOTH events still pay `fee` themselves).
+     */
+    @Builder.Default
+    private String teamFeeType = "PER_PERSON";
+
     @Transient
     private long joinedCount;
 

@@ -207,6 +207,19 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.success("Registered successfully", participant));
     }
 
+    @DeleteMapping("/events/{eventId}/participants/me")
+    public ResponseEntity<ApiResponse<Void>> cancelRegistration(
+            Authentication auth,
+            @PathVariable String eventId) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        eventService.cancelRegistration(userId, eventId);
+        return ResponseEntity.ok(ApiResponse.success("Registration cancelled successfully"));
+    }
+
+
     @PostMapping("/events/{eventId}/payment")
     public ResponseEntity<ApiResponse<EventParticipant>> submitPayment(
             Authentication auth,
