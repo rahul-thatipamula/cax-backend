@@ -42,8 +42,8 @@ public class UserRoleChangedListener {
                 
                 notificationService.createNotification(
                     event.getUser().getUserId(),
-                    "Congratulations! 👑",
-                    "You have been promoted to Super Student for your college.",
+                    "Role Promoted",
+                    "You have been promoted to the role of Super Student.",
                     NotificationType.SYSTEM,
                     data
                 );
@@ -57,8 +57,8 @@ public class UserRoleChangedListener {
                 
                 notificationService.createNotification(
                     event.getUser().getUserId(),
-                    "Role Update Notification",
-                    "Your Super Student privileges have been revoked, and your role has been set back to Student.",
+                    "Role Updated",
+                    "Your Super Student privileges have been rescinded, and your role has been reverted to Student.",
                     NotificationType.SYSTEM,
                     data
                 );

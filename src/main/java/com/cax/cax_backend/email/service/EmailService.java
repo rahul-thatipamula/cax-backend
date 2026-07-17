@@ -58,19 +58,22 @@ public class EmailService {
 
         String to = user.getEmail();
         String name = user.getName() != null ? user.getName() : "Student";
-        String subject = "Welcome to Cax!";
+        String subject = "Welcome to CAX – Your Account is Active";
 
         String textContent = String.format(
-            "Welcome to Cax\n\n" +
             "Hello %s,\n\n" +
-            "We are thrilled to welcome you to Cax, your digital campus companion. Your account is now active and ready.\n\n" +
-            "With Cax, coordinating campus life is simpler than ever:\n" +
-            "- Discover Clubs: Connect with campus organizations and manage officer privileges.\n" +
-            "- Stay Updated: Never miss out on campus events, announcements, and bulletins.\n" +
-            "- Digital Credentials: Access your student ID verification cleanly in the app.\n\n" +
-            "Get started by opening the Cax app on your mobile device!\n\n" +
-            "© 2026 Cax. All rights reserved.\n" +
-            "This is an automated operational message regarding your registration.",
+            "Welcome to CAX, your digital campus platform. We are pleased to inform you that your account has been successfully created and is now active.\n\n" +
+            "CAX is designed to streamline your campus experience. Here are the core features now available to you:\n" +
+            "• Discover Groups: Explore clubs, communities, and societies within your college.\n" +
+            "• Stay Updated: Receive notifications for campus events, announcements, and student bulletins.\n\n" +
+            "You can access CAX via the web platform or download our Android application:\n" +
+            "• Access Web Version: https://caxone.in\n" +
+            "• Download Android Version: https://play.google.com/store/apps/details?id=com.axiviontech.cax\n\n" +
+            "Best regards,\n" +
+            "The CAX Team\n\n" +
+            "---\n" +
+            "© 2026 CAX. All rights reserved.\n" +
+            "This is an automated operational message regarding your account registration.",
             name
         );
 
@@ -191,16 +194,15 @@ public class EmailService {
         boolean isApproved = "VERIFIED".equals(participant.getStatus());
 
         String subject = isApproved
-                ? "Your Registration is Confirmed: " + eventName + " 🎟️"
-                : "Update: Registration for " + eventName + " ⚠️";
+                ? "Your Registration is Confirmed: " + eventName
+                : "Update: Registration for " + eventName;
 
         String statusTitle = isApproved ? "Registration Approved" : "Registration Rejected";
         String statusColor = isApproved ? "#10B981" : "#EF4444"; // Green vs Red
-        String statusEmoji = isApproved ? "✅" : "⚠️";
 
         StringBuilder detailMessage = new StringBuilder();
         if (isApproved) {
-            detailMessage.append("<p>Great news! Your registration request for <strong>").append(eventName).append("</strong> has been successfully approved.</p>");
+            detailMessage.append("<p>Your registration request for <strong>").append(eventName).append("</strong> has been successfully approved.</p>");
             if (participant.getTicketCode() != null && !participant.getTicketCode().isEmpty()) {
                 detailMessage.append("<div class=\"highlight-box\" style=\"border-left-color: #10B981;\">");
                 detailMessage.append("<p style=\"font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #70695E; margin-bottom: 6px;\">Your Ticket Code</p>");
@@ -209,8 +211,8 @@ public class EmailService {
                 detailMessage.append("</div>");
             }
         } else {
-            detailMessage.append("<p>Your registration request for <strong>").append(eventName).append("</strong> has been rejected by the event organizer.</p>");
-            detailMessage.append("<p>If this is an error or if you need to submit new payment details, please check the event page or contact the organizers.</p>");
+            detailMessage.append("<p>Your registration request for <strong>").append(eventName).append("</strong> has been declined by the event organizer.</p>");
+            detailMessage.append("<p>If you believe this is an error, please verify your details or contact the organizers directly.</p>");
         }
 
         String htmlContent = String.format(
@@ -234,20 +236,20 @@ public class EmailService {
             "<body>\n" +
             "    <div class=\"container\">\n" +
             "        <h1>Event <span>Registration</span></h1>\n" +
-            "        <div class=\"status-badge\">%s %s</div>\n" +
+            "        <div class=\"status-badge\">%s</div>\n" +
             "        <p>Hello %s,</p>\n" +
             "        %s\n" +
-            "        <p>Check the console for details:</p>\n" +
-            "        <a href=\"https://caxone.in\" class=\"btn\">Open Dashboard</a>\n" +
+            "        <p>You can access details via our platforms below:</p>\n" +
+            "        <a href=\"https://caxone.in\" class=\"btn\" style=\"margin-right: 12px;\">Web Version</a>\n" +
+            "        <a href=\"https://play.google.com/store/apps/details?id=com.axiviontech.cax\" class=\"btn\">Android Version</a>\n" +
             "        <div class=\"footer\">\n" +
-            "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your registration status.</p>\n" +
+            "            <p>© 2026 CAX. All rights reserved.<br>This is an automated operational notification regarding your registration status.</p>\n" +
             "        </div>\n" +
             "    </div>\n" +
             "</body>\n" +
             "</html>",
             statusColor,
             statusColor,
-            statusEmoji,
             statusTitle,
             name,
             detailMessage.toString()
@@ -295,7 +297,7 @@ public class EmailService {
                 ? organization.getType().getDisplayName().toLowerCase()
                 : "organization";
         String orgName = organization != null ? organization.getName() : "the " + orgTypeLabel;
-        String subject = String.format("Congratulations! You've been assigned as %s of %s", role, orgName);
+        String subject = String.format("Leadership Assignment: %s of %s", role, orgName);
 
         String htmlContent = String.format(
             "<!DOCTYPE html>\n" +
@@ -310,6 +312,7 @@ public class EmailService {
             "        p { font-size: 15px; line-height: 1.6; margin: 0 0 16px 0; color: #70695E; }\n" +
             "        .highlight-box { background-color: #FAF8F5; border-left: 3px solid #2C227F; padding: 16px; margin: 24px 0; border-radius: 2px; }\n" +
             "        .highlight-box p { margin: 0; font-size: 14px; font-weight: 500; color: #191816; }\n" +
+            "        .btn { display: inline-block; background-color: #2C227F; color: #FAF8F5 !important; text-decoration: none; padding: 12px 24px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 4px; box-shadow: 3px 3px 0px #E6DFD5; margin-top: 10px; margin-bottom: 30px; }\n" +
             "        .footer { border-top: 1px solid #E6DFD5; padding-top: 24px; margin-top: 32px; font-size: 11px; color: #70695E; font-family: monospace; }\n" +
             "    </style>\n" +
             "</head>\n" +
@@ -317,15 +320,17 @@ public class EmailService {
             "    <div class=\"container\">\n" +
             "        <h1>Organization <span>Leadership Assignment</span></h1>\n" +
             "        <p>Hello %s,</p>\n" +
-            "        <p>We are excited to inform you that you have been assigned as the <strong>%s</strong> of the official %s <strong>%s</strong>.</p>\n" +
+            "        <p>We are pleased to inform you that you have been assigned as the <strong>%s</strong> of the official %s <strong>%s</strong>.</p>\n" +
             "        <div class=\"highlight-box\">\n" +
             "            <p>Role: %s</p>\n" +
             "            <p>Organization: %s</p>\n" +
-            "            <p>Assigned privileges: Manage Events, Manage Members, Manage Settings, Posts, and Memories.</p>\n" +
+            "            <p>Assigned Privileges: Event Management, Member Management, Organization Settings, Posts, and Memories.</p>\n" +
             "        </div>\n" +
-            "        <p>Please log in to the CAX Mobile App or Web Console to begin managing your organization.</p>\n" +
+            "        <p>To manage your organization, please access the platform via our Web Console or Android application below:</p>\n" +
+            "        <a href=\"https://caxone.in\" class=\"btn\" style=\"margin-right: 12px;\">Web Version</a>\n" +
+            "        <a href=\"https://play.google.com/store/apps/details?id=com.axiviontech.cax\" class=\"btn\">Android Version</a>\n" +
             "        <div class=\"footer\">\n" +
-            "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your leadership assignment.</p>\n" +
+            "            <p>© 2026 CAX. All rights reserved.<br>This is an automated operational notification regarding your leadership assignment.</p>\n" +
             "        </div>\n" +
             "    </div>\n" +
             "</body>\n" +
@@ -378,7 +383,7 @@ public class EmailService {
         String collegeName = (user.getCollegeDetails() != null && user.getCollegeDetails().getCollegeName() != null)
                 ? user.getCollegeDetails().getCollegeName()
                 : "your university";
-        String subject = "Congratulations! You are now a Verified Super Student! 👑";
+        String subject = "Role Update: Promoted to Super Student";
 
         String htmlContent = String.format(
             "<!DOCTYPE html>\n" +
@@ -401,18 +406,19 @@ public class EmailService {
             "<body>\n" +
             "    <div class=\"container\">\n" +
             "        <h1>CAX <span>Super Student</span></h1>\n" +
-            "        <div class=\"status-badge\">👑 Role Promoted</div>\n" +
+            "        <div class=\"status-badge\">Role Promoted</div>\n" +
             "        <p>Hello %s,</p>\n" +
-            "        <p>Congratulations! You have been officially promoted to the role of <strong>Super Student</strong> for <strong>%s</strong>.</p>\n" +
-            "        <p>As a Super Student, you now hold coordinator rights to help manage activities and student services for your campus.</p>\n" +
+            "        <p>We are pleased to inform you that you have been officially promoted to the role of <strong>Super Student</strong> for <strong>%s</strong>.</p>\n" +
+            "        <p>As a Super Student, you now hold coordinator privileges to help manage campus activities and services.</p>\n" +
             "        <div class=\"highlight-box\">\n" +
-            "            <p>🌟 Your Profile Badge: A Golden Crown icon is now visible next to your name on feed and comments.</p>\n" +
-            "            <p>🌟 Verified CAX ID Card: Your digital ID is automatically verified and styled with holographic highlights.</p>\n" +
+            "            <p>• Profile Indicator: A verification badge is now visible next to your name on feed posts and comments.</p>\n" +
+            "            <p>• Campus Management: Access to coordinator features to manage campus activities and services.</p>\n" +
             "        </div>\n" +
-            "        <p>Launch the app to check out your new features and dashboard settings:</p>\n" +
-            "        <a href=\"https://caxone.in\" class=\"btn\">Launch Dashboard</a>\n" +
+            "        <p>To access your coordinator dashboard, please use the platform links below:</p>\n" +
+            "        <a href=\"https://caxone.in\" class=\"btn\" style=\"margin-right: 12px;\">Web Version</a>\n" +
+            "        <a href=\"https://play.google.com/store/apps/details?id=com.axiviontech.cax\" class=\"btn\">Android Version</a>\n" +
             "        <div class=\"footer\">\n" +
-            "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your student role upgrade.</p>\n" +
+            "            <p>© 2026 CAX. All rights reserved.<br>This is an automated operational notification regarding your student role upgrade.</p>\n" +
             "        </div>\n" +
             "    </div>\n" +
             "</body>\n" +
@@ -458,7 +464,7 @@ public class EmailService {
 
         String to = user.getEmail();
         String name = user.getName() != null ? user.getName() : "Student";
-        String subject = "Update: Super Student Privileges Revoked";
+        String subject = "Role Update: Super Student Status Revoked";
 
         String htmlContent = String.format(
             "<!DOCTYPE html>\n" +
@@ -479,12 +485,15 @@ public class EmailService {
             "<body>\n" +
             "    <div class=\"container\">\n" +
             "        <h1>CAX <span>Role Update</span></h1>\n" +
-            "        <div class=\"status-badge\">⚠️ Role Updated</div>\n" +
+            "        <div class=\"status-badge\">Role Updated</div>\n" +
             "        <p>Hello %s,</p>\n" +
-            "        <p>This email is to notify you that your Super Student coordinator privileges have been revoked by the system administrator.</p>\n" +
-            "        <p>Your user role has been set back to <strong>Student</strong>. If you believe this is in error, please contact your university administrator or support.</p>\n" +
+            "        <p>This email is to notify you that your Super Student coordinator privileges have been rescinded.</p>\n" +
+            "        <p>Your user role has been reverted to <strong>Student</strong>. If you believe this is in error, please contact your campus administrator or support.</p>\n" +
+            "        <p>To review your account settings and profile details, please access the platform links below:</p>\n" +
+            "        <a href=\"https://caxone.in\" class=\"btn\" style=\"margin-right: 12px;\">Web Version</a>\n" +
+            "        <a href=\"https://play.google.com/store/apps/details?id=com.axiviontech.cax\" class=\"btn\">Android Version</a>\n" +
             "        <div class=\"footer\">\n" +
-            "            <p>© 2026 Cax. All rights reserved.<br>This is an automated operational notification regarding your student role update.</p>\n" +
+            "            <p>© 2026 CAX. All rights reserved.<br>This is an automated operational notification regarding your student role update.</p>\n" +
             "        </div>\n" +
             "    </div>\n" +
             "</body>\n" +

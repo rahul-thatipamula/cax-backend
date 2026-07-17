@@ -43,8 +43,8 @@ public class WaterReminderScheduler {
                     try {
                         notificationService.createNotification(
                                 user.getUserId(),
-                                "Stay Hydrated! 💧",
-                                "It's time to drink a glass of water to keep your energy up.",
+                                "Stay Hydrated",
+                                "This is a reminder to drink a glass of water to maintain hydration.",
                                 NotificationType.SYSTEM,
                                 new HashMap<>()
                         );

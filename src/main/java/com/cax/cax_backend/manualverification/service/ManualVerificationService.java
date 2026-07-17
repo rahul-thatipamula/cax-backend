@@ -248,8 +248,8 @@ public class ManualVerificationService {
         userRepository.save(user);
         eventPublisher.publishEvent(new CollegeSelectedEvent(this, user));
 
-        notifyUser(user, "You're verified! 🎉",
-                "Your student ID was approved. Welcome to " + college.getCollegeName() + " on CAX.");
+        notifyUser(user, "Verification Approved",
+                "Your enrollment verification was approved. Welcome to " + college.getCollegeName() + " on CAX.");
         log.info("Manual verification {} approved by {} → user {} assigned to {}",
                 recordId, adminUserId, user.getUserId(), college.getCollegeName());
         return record;
@@ -275,8 +275,8 @@ public class ManualVerificationService {
             }
             user.setUpdatedAt(now);
             userRepository.save(user);
-            notifyUser(user, "Verification update",
-                    "Your student ID could not be verified: " + recordFinalReason(reason) + " You can submit a new photo anytime.");
+            notifyUser(user, "Verification Update",
+                    "Your enrollment verification was unsuccessful: " + recordFinalReason(reason) + " You may submit a new photo for review.");
         });
         log.info("Manual verification {} rejected by {}", recordId, adminUserId);
         return record;
@@ -318,10 +318,10 @@ public class ManualVerificationService {
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
 
-        notifyUser(user, "Re-verification requested",
+        notifyUser(user, "Re-Verification Requested",
                 (reason != null && !reason.isBlank())
-                        ? "Please re-upload your student ID card: " + reason
-                        : "Please re-upload your current student ID card to keep full access.");
+                        ? "Please re-upload your enrollment documentation: " + reason
+                        : "Please re-upload your current enrollment documentation to maintain full access.");
         log.info("Manual re-verification requested for user {} by admin {}", userId, adminUserId);
         return user;
     }
@@ -339,8 +339,8 @@ public class ManualVerificationService {
                 continue;
             }
             userRepository.findByUserId(record.getUserId()).ifPresent(user ->
-                    notifyUser(user, "Yearly verification due soon",
-                            "Your student verification expires on July 19. Re-upload your current ID card to keep full access — it only takes a minute."));
+                    notifyUser(user, "Annual Verification Due Soon",
+                            "Your student enrollment verification is set to expire on July 19. Please submit your current documentation to maintain full access."));
             record.setLastReminderSentAt(now);
             repository.save(record);
         }
@@ -371,15 +371,15 @@ public class ManualVerificationService {
                 user.setManualVerificationStatus("EXPIRED");
                 user.setUpdatedAt(now);
                 userRepository.save(user);
-                notifyUser(user, "Verification expired",
-                        "Your yearly student verification has expired. Re-upload your ID card to restore full access.");
+                notifyUser(user, "Verification Expired",
+                        "Your student enrollment verification has expired. Please submit current documentation to restore full access.");
                 log.info("Manual verification expired for user {}", user.getUserId());
             } else if (!"REVERIFY_REQUIRED".equals(user.getManualVerificationStatus())) {
                 user.setManualVerificationStatus("REVERIFY_REQUIRED");
                 user.setUpdatedAt(now);
                 userRepository.save(user);
-                notifyUser(user, "Time for your yearly verification",
-                        "Please re-upload your current student ID card. You have 30 days — your access continues meanwhile.");
+                notifyUser(user, "Annual Verification Required",
+                        "Please submit your current enrollment documentation. You have a 30-day grace period during which your access will continue uninterrupted.");
                 log.info("Manual re-verification requested for user {}", user.getUserId());
             }
         }

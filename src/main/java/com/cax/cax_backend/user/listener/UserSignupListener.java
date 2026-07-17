@@ -35,8 +35,8 @@ public class UserSignupListener {
             data.put("type", "welcome");
             notificationService.createNotification(
                 event.getUser().getUserId(),
-                "Welcome to CAX!",
-                "Welcome to the CAX app, " + event.getUser().getName() + "! Discover campus clubs, events, and buy or sell items easily.",
+                "Welcome to CAX",
+                "Welcome to CAX, " + event.getUser().getName() + ". Explore campus clubs, communities, and activities.",
                 NotificationType.SYSTEM,
                 data
             );

@@ -1119,8 +1119,8 @@ public class EventService {
         // Asynchronous broadcast execution
         taskExecutor.execute(() -> {
             log.info("Broadcasting event announcement for event {} to {} users...", event.getId(), targetUsers.size());
-            String title = "📢 Announcement: " + event.getName();
-            String body = "New announcement for event: " + event.getName() + ". Check it out!";
+            String title = "Announcement: " + event.getName();
+            String body = "A new announcement has been posted for the event: " + event.getName() + ".";
             
             Map<String, String> data = new HashMap<>();
             data.put("type", "EVENT_ANNOUNCEMENT");
@@ -1342,8 +1342,8 @@ public class EventService {
         try {
             List<EventParticipant> participants = eventParticipantRepository.findByEventId(eventId);
             if (participants != null && !participants.isEmpty()) {
-                String title = "New Live Memory Shared!";
-                String body = "A new live photo memory has been shared for the event: " + event.getName();
+                String title = "New Live Memory Shared";
+                String body = "A new photo memory has been shared for the event: " + event.getName() + ".";
 
                 Map<String, String> data = new HashMap<>();
                 data.put("type", "EVENT_MEMORY_ADDED");

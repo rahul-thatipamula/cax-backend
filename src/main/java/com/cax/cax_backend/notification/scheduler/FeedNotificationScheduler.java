@@ -99,7 +99,7 @@ public class FeedNotificationScheduler {
 
                 notificationService.createNotification(
                         user.getUserId(),
-                        "🔥 Today's trending thoughts",
+                        "Trending Thoughts",
                         body,
                         NotificationType.FEED,
                         data

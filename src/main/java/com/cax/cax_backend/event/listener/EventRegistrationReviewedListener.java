@@ -40,10 +40,10 @@ public class EventRegistrationReviewedListener {
 
         try {
             boolean isApproved = "VERIFIED".equals(participant.getStatus());
-            String title = isApproved ? "Registration Approved" : "Registration Rejected";
+            String title = isApproved ? "Registration Approved" : "Registration Declined";
             String body = isApproved
-                    ? "Your registration for the event '" + eventDetails.getName() + "' has been approved!"
-                    : "Your registration for the event '" + eventDetails.getName() + "' was not approved by the organizer.";
+                    ? "Your registration for the event '" + eventDetails.getName() + "' has been approved."
+                    : "Your registration request for the event '" + eventDetails.getName() + "' was declined by the organizer.";
 
             Map<String, String> data = new HashMap<>();
             data.put("type", "event_registration");

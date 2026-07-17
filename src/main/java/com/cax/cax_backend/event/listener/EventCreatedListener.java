@@ -37,8 +37,8 @@ public class EventCreatedListener {
             Organization organization = organizationService.getOrganizationById(eventDetails.getOrganizationId());
             List<OrganizationMember> members = organizationMemberRepository.findByOrganizationId(organization.getId());
 
-            String title = "New Event in " + organization.getName() + "!";
-            String body = eventDetails.getName() + " has been announced! Check it out.";
+            String title = "New Event in " + organization.getName();
+            String body = eventDetails.getName() + " has been announced.";
 
             Map<String, String> data = new HashMap<>();
             data.put("type", "EVENT_CREATED");

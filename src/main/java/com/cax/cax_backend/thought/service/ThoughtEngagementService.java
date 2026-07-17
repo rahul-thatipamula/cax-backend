@@ -151,7 +151,7 @@ public class ThoughtEngagementService {
                     data.put("postId", thought.getId());
                     data.put("deepLink", "app://feed/post/" + thought.getId());
 
-                    String title = "🔥 Your thought is trending!";
+                    String title = "Your Thought is Trending";
                     String body = "\"" + thought.getHeading() + "\" is getting a lot of attention right now.";
 
                     notificationService.createNotification(
