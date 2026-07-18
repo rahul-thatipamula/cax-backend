@@ -247,6 +247,68 @@ public class EventTeamService {
 
         eventParticipantRepository.delete(member);
         log.info("User {} removed from team {} (event {}) by {}", memberUserId, teamId, eventId, actorId);
+
+        // A manager removal can shrink a COMPLETE team below minTeamSize.
+        eventService.recomputeTeamCompletion(event, team);
+    }
+
+    /**
+     * Hands team leadership to another active member. Lets a leader step back
+     * (and then leave) without removing everyone else's registrations.
+     */
+    public Map<String, Object> transferLeadership(String actorId, String eventId, String teamId, String newLeaderUserId) {
+        Event event = eventService.getEventById(eventId);
+        EventTeam team = eventTeamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Team", teamId));
+        if (!team.getEventId().equals(eventId)) {
+            throw new BusinessException.BadRequestException("Team does not belong to this event.");
+        }
+
+        boolean isLeader = actorId.equals(team.getLeaderUserId());
+        if (!isLeader) {
+            // Throws unless the actor manages this event.
+            eventService.verifyEventManager(actorId, event);
+        }
+
+        if (newLeaderUserId == null || newLeaderUserId.isBlank()) {
+            throw new BusinessException.BadRequestException("newLeaderUserId is required.");
+        }
+        if (newLeaderUserId.equals(team.getLeaderUserId())) {
+            throw new BusinessException.BadRequestException("This member is already the team leader.");
+        }
+
+        EventParticipant currentLeader = eventParticipantRepository
+                .findFirstByEventIdAndUserId(eventId, team.getLeaderUserId())
+                .orElseThrow(() -> new BusinessException.BadRequestException("Current team leader record not found."));
+        EventParticipant newLeader = eventParticipantRepository
+                .findFirstByEventIdAndUserId(eventId, newLeaderUserId)
+                .orElseThrow(() -> new BusinessException.BadRequestException("This user is not part of the event."));
+        if (!team.getId().equals(newLeader.getTeamId())) {
+            throw new BusinessException.BadRequestException("This user is not part of your team.");
+        }
+        if ("REJECTED".equals(newLeader.getStatus())) {
+            throw new BusinessException.BadRequestException("A rejected member cannot become the team leader.");
+        }
+
+        // PER_TEAM fee: the leader is the payer. While the current leader's
+        // payment is under review, keep the money trail attached to them.
+        if (event.isPaid() && "PER_TEAM".equals(event.getTeamFeeType())
+                && "PAYMENT_SUBMITTED".equals(currentLeader.getStatus())) {
+            throw new BusinessException.BadRequestException(
+                    "The leader's payment is under review — leadership can be transferred after it is verified or rejected.");
+        }
+
+        newLeader.setTeamLeader(true);
+        eventParticipantRepository.save(newLeader);
+        currentLeader.setTeamLeader(false);
+        eventParticipantRepository.save(currentLeader);
+        team.setLeaderUserId(newLeaderUserId);
+        team.setUpdatedAt(Instant.now());
+        team = eventTeamRepository.save(team);
+
+        log.info("Team {} leadership transferred from {} to {} (event {}) by {}",
+                teamId, currentLeader.getUserId(), newLeaderUserId, eventId, actorId);
+        return eventService.buildTeamPayload(event, team);
     }
 
     // ========================================================================

@@ -111,6 +111,17 @@ public class EventService {
         eventData.setParticipationType("INDIVIDUAL");
     }
 
+    private void validatePaymentMode(Event eventData) {
+        String mode = eventData.getPaymentMode();
+        if (mode == null || mode.isBlank()) {
+            eventData.setPaymentMode("RAZORPAY");
+            return;
+        }
+        if (!"RAZORPAY".equals(mode) && !"MANUAL_UPI".equals(mode)) {
+            throw new BusinessException.BadRequestException("paymentMode must be RAZORPAY or MANUAL_UPI.");
+        }
+    }
+
     private void validateTeamSettings(Event eventData) {
         String type = eventData.getParticipationType();
         if (type == null || type.isBlank()) {
@@ -161,6 +172,7 @@ public class EventService {
             throw new BusinessException.BadRequestException("An event can have at most 4 coordinators.");
         }
 
+        validatePaymentMode(eventData);
         if (eventData.isPaid() && "RAZORPAY".equals(eventData.getPaymentMode())) {
             if (!systemSettingService.isRazorpayEnabled()) {
                 throw new BusinessException.BadRequestException("Razorpay payment gateway is currently disabled by admin.");
@@ -247,16 +259,19 @@ public class EventService {
             throw new BusinessException.BadRequestException(
                     "Payment type (paid/free) cannot be changed after creation.");
         }
-        // Determine effective isExternallyManaged for this update
-        boolean willBeExternal = eventData.isExternallyManaged();
-
-        // If switching TO externally managed, enforce URL + wipe payment fields.
-        // If staying external, re-validate URL. If switching OFF, clear the URL.
-        if (willBeExternal) {
+        // isGlobal, isExternallyManaged, and isPaid are locked (rejected above),
+        // so this update never transitions between those modes — it only refreshes
+        // the fields each mode allows.
+        if (event.isExternallyManaged()) {
             enforceExternallyManagedConstraints(eventData);
-        } else {
-            // Switching away from externally managed: clear the URL
-            eventData.setExternalRegistrationUrl(null);
+            event.setExternalRegistrationUrl(eventData.getExternalRegistrationUrl());
+            // Externally managed events must not carry CAX payment data.
+            event.setPaid(false);
+            event.setFee(0);
+            event.setUpiId(null);
+            event.setUpiQrCode(null);
+            event.setIdCardRequired(false);
+            event.setRequiredFields(new java.util.ArrayList<>());
         }
 
         // Update allowed fields
@@ -266,33 +281,8 @@ public class EventService {
         if (eventData.getRegistrationEndDate() != null) event.setRegistrationEndDate(eventData.getRegistrationEndDate());
         if (eventData.getEventStartDate() != null) event.setEventStartDate(eventData.getEventStartDate());
         if (eventData.getEventEndDate() != null) event.setEventEndDate(eventData.getEventEndDate());
-        // Block switching from global → college-level if participants from other colleges exist
-        boolean switchingToCollegeLevel = event.isGlobal() && !eventData.isGlobal();
-        if (switchingToCollegeLevel) {
-            String clubCollegeId = organization.getCollegeId();
-            long outsideCount = eventParticipantRepository
-                    .countByEventIdAndCollegeIdNotAndCollegeIdNotNull(eventId, clubCollegeId);
-            if (outsideCount > 0) {
-                throw new BusinessException.BadRequestException(
-                        outsideCount + " participant(s) from other colleges have already registered for this event. " +
-                        "You cannot change it to college-only. Remove those participants first or keep the event global.");
-            }
-        }
 
-        event.setGlobal(eventData.isGlobal());
-        event.setExternallyManaged(willBeExternal);
-        event.setExternalRegistrationUrl(eventData.getExternalRegistrationUrl());
-
-        if (willBeExternal) {
-            // Server-side: externally managed events must not carry CAX payment data
-            event.setPaid(false);
-            event.setFee(0);
-            event.setUpiId(null);
-            event.setUpiQrCode(null);
-            event.setIdCardRequired(false);
-            event.setRequiredFields(new java.util.ArrayList<>());
-        } else {
-            event.setPaid(eventData.isPaid());
+        if (!event.isExternallyManaged()) {
             event.setFee(eventData.getFee());
             event.setIdCardRequired(eventData.isIdCardRequired());
             if (eventData.getRequiredFields() != null) {
@@ -655,6 +645,15 @@ public class EventService {
 
         User user = userService.getUserByUserId(userId);
 
+        // Mirror of the mobile gate: unverified accounts cannot register.
+        // Enforced here too so a raw API call can't bypass the client check.
+        boolean privileged = user.getRole() == com.cax.cax_backend.common.enums.UserRole.ADMIN
+                || user.getRole() == com.cax.cax_backend.common.enums.UserRole.SUPER_STUDENT;
+        if (!user.isIdVerified() && !privileged) {
+            throw new BusinessException.BadRequestException(
+                    "Your account must be verified before registering for events.");
+        }
+
         // Non-global events are restricted to the same college
         if (!event.isGlobal()) {
             Organization organization = organizationService.getOrganizationById(event.getOrganizationId());
@@ -774,6 +773,19 @@ public class EventService {
         if (!"PENDING_PAYMENT".equals(participant.getStatus()) && !"REJECTED".equals(participant.getStatus())) {
             throw new BusinessException.BadRequestException("Payment submission is not allowed in current status: " + participant.getStatus());
         }
+
+        // The amount is echoed by the client for the audit trail, but the fee the
+        // participant owes is the event's — never trust the client's number.
+        if (Math.abs(amount - event.getFee()) > 0.009) {
+            throw new BusinessException.BadRequestException(
+                    "Submitted amount (₹" + amount + ") does not match the event fee (₹" + event.getFee() + ").");
+        }
+
+        if (utrNumber == null || !utrNumber.trim().matches("\\d{12}")) {
+            throw new BusinessException.BadRequestException(
+                    "UTR number must be exactly 12 digits. Check the transaction reference in your UPI app.");
+        }
+        utrNumber = utrNumber.trim();
 
         participant.setUtrNumber(com.cax.cax_backend.common.util.EncryptionUtils.encrypt(utrNumber));
         participant.setPaymentScreenshot(screenshotUrl);
@@ -976,6 +988,9 @@ public class EventService {
      * Promotes a FORMING team to COMPLETE once it has minTeamSize non-rejected
      * members, and issues tickets to every VERIFIED member of a COMPLETE team
      * that doesn't have one yet (tickets are held back until completion).
+     * Also demotes a COMPLETE team back to FORMING if rejections or removals
+     * drop it below the minimum — unless someone is already checked in, at
+     * which point the roster is the organizers' problem, not the state machine's.
      */
     void recomputeTeamCompletion(Event event, EventTeam team) {
         List<EventParticipant> members = eventParticipantRepository.findByEventIdAndTeamId(event.getId(), team.getId());
@@ -983,6 +998,12 @@ public class EventService {
 
         if ("FORMING".equals(team.getStatus()) && activeCount >= event.getMinTeamSize()) {
             team.setStatus("COMPLETE");
+            team.setUpdatedAt(Instant.now());
+            team = eventTeamRepository.save(team);
+        } else if ("COMPLETE".equals(team.getStatus())
+                && activeCount < event.getMinTeamSize()
+                && members.stream().noneMatch(EventParticipant::isCheckedIn)) {
+            team.setStatus("FORMING");
             team.setUpdatedAt(Instant.now());
             team = eventTeamRepository.save(team);
         }

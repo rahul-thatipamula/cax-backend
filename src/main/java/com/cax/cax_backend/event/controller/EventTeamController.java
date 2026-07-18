@@ -90,6 +90,22 @@ public class EventTeamController {
         return ResponseEntity.ok(ApiResponse.success("Member removed from team"));
     }
 
+    /**
+     * Transfer team leadership to another active member (leader or event manager).
+     * Body: { "newLeaderUserId": "..." }
+     */
+    @PostMapping("/events/{eventId}/teams/{teamId}/transfer-leader")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> transferLeadership(
+            Authentication auth,
+            @PathVariable String eventId,
+            @PathVariable String teamId,
+            @RequestBody Map<String, Object> body) {
+        String userId = requireUserId(auth);
+        String newLeaderUserId = body.get("newLeaderUserId") != null ? body.get("newLeaderUserId").toString() : null;
+        Map<String, Object> result = eventTeamService.transferLeadership(userId, eventId, teamId, newLeaderUserId);
+        return ResponseEntity.ok(ApiResponse.success("Team leadership transferred", result));
+    }
+
     /** Bulk check-in of all eligible members of a team (organizers only). */
     @PostMapping("/events/{eventId}/teams/{teamId}/checkin")
     public ResponseEntity<ApiResponse<Map<String, Object>>> checkInTeam(

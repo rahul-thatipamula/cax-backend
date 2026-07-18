@@ -17,7 +17,6 @@ public interface EventParticipantRepository extends MongoRepository<EventPartici
     boolean existsByEventId(String eventId);
     Optional<EventParticipant> findByEventIdAndTicketCode(String eventId, String ticketCode);
     Optional<EventParticipant> findByTicketCode(String ticketCode);
-    long countByEventIdAndCollegeIdNotAndCollegeIdNotNull(String eventId, String collegeId);
     long countByEventId(String eventId);
     List<EventParticipant> findByEventIdAndTeamId(String eventId, String teamId);
 }
