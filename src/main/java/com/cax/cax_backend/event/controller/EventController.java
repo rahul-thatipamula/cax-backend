@@ -176,6 +176,21 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
+    /**
+     * Merged events + bulletin events feed, backing both the home screen's
+     * "Upcoming Events" section and the Events tab's Upcoming/Ongoing/Completed/All filters.
+     */
+    @GetMapping("/events/feed")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getEventsFeed(
+            Authentication auth,
+            @RequestParam(defaultValue = "upcoming") String filter,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        String userId = auth != null && auth.isAuthenticated() ? (String) auth.getPrincipal() : null;
+        Map<String, Object> feed = eventService.getEventsFeed(userId, filter, page, size);
+        return ResponseEntity.ok(ApiResponse.success(feed));
+    }
+
     @GetMapping("/events/joined")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getJoinedEvents(
             Authentication auth,

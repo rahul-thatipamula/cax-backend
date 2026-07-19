@@ -21,6 +21,7 @@ public class DashboardResponse {
     private List<Organization> myOrganizations;
     private List<Event> discoverEvents;
     private List<Map<String, Object>> joinedEvents;
+    private List<Map<String, Object>> upcomingEvents;
     private long unreadNotificationCount;
     private User profile;
 }

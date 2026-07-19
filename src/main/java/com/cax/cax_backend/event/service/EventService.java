@@ -563,6 +563,88 @@ public class EventService {
         return result;
     }
 
+    /**
+     * Merged, filtered, paged feed of regular events + bulletin events, soonest-first.
+     * {@code filter} is one of "upcoming" (default), "ongoing", "completed", "all".
+     * Each entry in the returned "content" list is {@code {type: "EVENT"|"BULLETIN", data: {...}}},
+     * matching the shape the home dashboard already returns so client-side parsing is shared.
+     */
+    public Map<String, Object> getEventsFeed(String userId, String filter, int page, int size) {
+        Instant now = Instant.now();
+
+        final String userCollegeId;
+        if (userId != null && !userId.isBlank()) {
+            User user = userService.getUserByUserId(userId);
+            userCollegeId = (user.getCollegeDetails() != null) ? user.getCollegeDetails().getCollegeId() : null;
+        } else {
+            userCollegeId = null;
+        }
+        String cid = (userCollegeId == null) ? "" : userCollegeId;
+
+        List<Event> events;
+        List<com.cax.cax_backend.bulletinevent.model.BulletinEvent> bulletins;
+        switch (filter == null ? "upcoming" : filter) {
+            case "ongoing":
+                events = eventRepository.findOngoingEvents("ACTIVE", now, cid);
+                bulletins = bulletinEventService.getOngoingBulletinEvents(cid, now);
+                break;
+            case "completed":
+                events = eventRepository.findCompletedEvents("ACTIVE", now, cid);
+                bulletins = bulletinEventService.getCompletedBulletinEvents(cid, now);
+                break;
+            case "all":
+                events = eventRepository.findAllScopedEvents("ACTIVE", cid);
+                bulletins = bulletinEventService.getBulletinEventsForUser(cid);
+                break;
+            case "upcoming":
+            default:
+                events = eventRepository.findUpcomingEvents("ACTIVE", now, cid);
+                bulletins = bulletinEventService.getUpcomingBulletinEvents(cid, now);
+                break;
+        }
+        populateJoinedCount(events);
+
+        // College-level events are always shown first (their own tier, soonest-first);
+        // global events and bulletins are mixed together after, also soonest-first.
+        List<Map<String, Object>> collegeTier = new java.util.ArrayList<>();
+        List<Map<String, Object>> globalTier = new java.util.ArrayList<>();
+        for (Event event : events) {
+            (event.isGlobal() ? globalTier : collegeTier).add(toTaggedMap(event, "EVENT"));
+        }
+        for (com.cax.cax_backend.bulletinevent.model.BulletinEvent bulletin : bulletins) {
+            globalTier.add(toTaggedMap(bulletin, "BULLETIN"));
+        }
+        java.util.Comparator<Map<String, Object>> byStartDate = java.util.Comparator.comparing(
+                m -> (String) ((Map<String, Object>) m.get("data")).get("eventStartDate"));
+        collegeTier.sort(byStartDate);
+        globalTier.sort(byStartDate);
+
+        List<Map<String, Object>> tagged = new java.util.ArrayList<>(collegeTier);
+        tagged.addAll(globalTier);
+
+        int total = tagged.size();
+        int totalPages = size <= 0 ? 0 : (int) Math.ceil((double) total / size);
+        int fromIndex = page * size;
+        List<Map<String, Object>> content = (fromIndex >= total || size <= 0)
+                ? new java.util.ArrayList<>()
+                : tagged.subList(fromIndex, Math.min(fromIndex + size, total));
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("content", content);
+        result.put("totalElements", total);
+        result.put("totalPages", totalPages);
+        result.put("last", (page + 1) >= totalPages);
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> toTaggedMap(Object source, String type) {
+        Map<String, Object> item = new java.util.LinkedHashMap<>();
+        item.put("type", type);
+        item.put("data", objectMapper.convertValue(source, Map.class));
+        return item;
+    }
+
     public List<Map<String, Object>> getJoinedEvents(String userId) {
         return getJoinedEvents(userId, 0, 50);
     }

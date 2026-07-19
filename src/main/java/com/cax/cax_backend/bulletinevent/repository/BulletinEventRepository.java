@@ -5,6 +5,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 
 @Repository
@@ -17,5 +18,17 @@ public interface BulletinEventRepository extends MongoRepository<BulletinEvent, 
     // Admin: all non-deleted (including inactive) — ordered by createdAt desc
     @Query("{ 'deleted': { $ne: true } }")
     List<BulletinEvent> findAllNotDeleted();
+
+    /** Active bulletins starting after now, scoped to global or the given college. */
+    @Query("{ 'deleted': { $ne: true }, 'active': true, 'eventStartDate': { '$gt': ?1 }, '$or': [ { 'global': true }, { 'collegeIds': ?0 } ] }")
+    List<BulletinEvent> findUpcoming(String collegeId, Instant now);
+
+    /** Active bulletins that have started but not yet ended, scoped to global or the given college. */
+    @Query("{ 'deleted': { $ne: true }, 'active': true, 'eventStartDate': { '$lte': ?1 }, 'eventEndDate': { '$gt': ?1 }, '$or': [ { 'global': true }, { 'collegeIds': ?0 } ] }")
+    List<BulletinEvent> findOngoing(String collegeId, Instant now);
+
+    /** Active bulletins that have already ended, scoped to global or the given college. */
+    @Query("{ 'deleted': { $ne: true }, 'active': true, 'eventEndDate': { '$lte': ?1 }, '$or': [ { 'global': true }, { 'collegeIds': ?0 } ] }")
+    List<BulletinEvent> findCompleted(String collegeId, Instant now);
 }
 

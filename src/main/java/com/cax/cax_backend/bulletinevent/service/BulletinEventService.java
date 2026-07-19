@@ -1,7 +1,9 @@
 package com.cax.cax_backend.bulletinevent.service;
 
 import com.cax.cax_backend.bulletinevent.model.BulletinEvent;
+import com.cax.cax_backend.bulletinevent.model.BulletinEventScore;
 import com.cax.cax_backend.bulletinevent.repository.BulletinEventRepository;
+import com.cax.cax_backend.bulletinevent.repository.BulletinEventScoreRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +16,7 @@ import java.util.Optional;
 public class BulletinEventService {
 
     private final BulletinEventRepository bulletinEventRepository;
+    private final BulletinEventScoreRepository bulletinEventScoreRepository;
 
     /** Admin: all non-deleted bulletins (active + inactive). */
     public List<BulletinEvent> getAllBulletinEvents() {
@@ -26,6 +29,24 @@ public class BulletinEventService {
         return bulletinEventRepository.findActiveByGlobalOrCollegeId(cid);
     }
 
+    /** Student-facing: active bulletins starting after now, scoped to college or global. */
+    public List<BulletinEvent> getUpcomingBulletinEvents(String collegeId, Instant now) {
+        String cid = (collegeId == null || collegeId.isBlank()) ? "" : collegeId;
+        return bulletinEventRepository.findUpcoming(cid, now);
+    }
+
+    /** Student-facing: active bulletins currently in progress, scoped to college or global. */
+    public List<BulletinEvent> getOngoingBulletinEvents(String collegeId, Instant now) {
+        String cid = (collegeId == null || collegeId.isBlank()) ? "" : collegeId;
+        return bulletinEventRepository.findOngoing(cid, now);
+    }
+
+    /** Student-facing: active bulletins that have already ended, scoped to college or global. */
+    public List<BulletinEvent> getCompletedBulletinEvents(String collegeId, Instant now) {
+        String cid = (collegeId == null || collegeId.isBlank()) ? "" : collegeId;
+        return bulletinEventRepository.findCompleted(cid, now);
+    }
+
     public Optional<BulletinEvent> getBulletinEventById(String id) {
         return bulletinEventRepository.findById(id);
     }
@@ -35,7 +56,21 @@ public class BulletinEventService {
         bulletinEvent.setUpdatedAt(Instant.now());
         bulletinEvent.setActive(true);
         bulletinEvent.setDeleted(false);
-        return bulletinEventRepository.save(bulletinEvent);
+        BulletinEvent saved = bulletinEventRepository.save(bulletinEvent);
+        initializeScore(saved.getId());
+        return saved;
+    }
+
+    /** Creates the (always-zero) score tracking record for a new bulletin event, kept in its own collection. */
+    private void initializeScore(String bulletinEventId) {
+        Instant now = Instant.now();
+        BulletinEventScore score = BulletinEventScore.builder()
+                .bulletinEventId(bulletinEventId)
+                .score(0)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        bulletinEventScoreRepository.save(score);
     }
 
     public BulletinEvent updateBulletinEvent(String id, BulletinEvent updateData) {

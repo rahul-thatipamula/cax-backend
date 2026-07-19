@@ -29,6 +29,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class HomeController {
 
+    private static final int MAX_UPCOMING_EVENTS = 10;
+
     private final CarouselRepository carouselRepository;
     private final OrganizationService organizationService;
     private final EventService eventService;
@@ -78,15 +80,26 @@ public class HomeController {
         // 5. Fetch Unread Notification Count
         long unreadCount = notificationService.getUnreadCount(userId);
 
+        // 6. Fetch Upcoming Events (regular events + bulletin events, merged, up to 10)
+        List<Map<String, Object>> upcomingEvents = buildUpcomingEvents(userId);
+
         DashboardResponse response = DashboardResponse.builder()
                 .banners(banners)
                 .myOrganizations(myOrganizations)
                 .discoverEvents(discoverEvents)
                 .joinedEvents(joinedEvents)
+                .upcomingEvents(upcomingEvents)
                 .unreadNotificationCount(unreadCount)
                 .profile(user)
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /** Merged regular + bulletin events for the home dashboard, soonest-first, capped at {@link #MAX_UPCOMING_EVENTS}. */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> buildUpcomingEvents(String userId) {
+        Map<String, Object> feed = eventService.getEventsFeed(userId, "upcoming", 0, MAX_UPCOMING_EVENTS);
+        return (List<Map<String, Object>>) feed.get("content");
     }
 }
