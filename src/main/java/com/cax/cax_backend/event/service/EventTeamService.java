@@ -74,6 +74,7 @@ public class EventTeamService {
             eventTeamRepository.deleteById(team.getId());
             throw new BusinessException.BadRequestException("You are already registered for this event.");
         }
+        eventService.refreshEventScore(eventId);
 
         log.info("Team '{}' ({}) created for event {} by user {}", teamName, team.getTeamCode(), eventId, userId);
 
@@ -129,6 +130,7 @@ public class EventTeamService {
         } catch (DuplicateKeyException e) {
             throw new BusinessException.BadRequestException("You are already registered for this event.");
         }
+        eventService.refreshEventScore(eventId);
 
         // May promote the team to COMPLETE and issue held-back tickets.
         eventService.recomputeTeamCompletion(event, team);
@@ -195,11 +197,13 @@ public class EventTeamService {
             // Sole member: leaving disbands the team.
             eventParticipantRepository.delete(participant);
             eventTeamRepository.delete(team);
+            eventService.refreshEventScore(eventId);
             log.info("Team {} disbanded by leader {} for event {}", team.getId(), userId, eventId);
             return;
         }
 
         eventParticipantRepository.delete(participant);
+        eventService.refreshEventScore(eventId);
         log.info("User {} left team {} for event {}", userId, team.getId(), eventId);
     }
 
@@ -246,6 +250,7 @@ public class EventTeamService {
         }
 
         eventParticipantRepository.delete(member);
+        eventService.refreshEventScore(eventId);
         log.info("User {} removed from team {} (event {}) by {}", memberUserId, teamId, eventId, actorId);
 
         // A manager removal can shrink a COMPLETE team below minTeamSize.

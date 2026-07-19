@@ -58,6 +58,9 @@ public class EventService {
     private final Executor taskExecutor;
     private final RazorpayService razorpayService;
     private final SystemSettingService systemSettingService;
+    private final com.cax.cax_backend.bulletinevent.service.BulletinEventService bulletinEventService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final EventScoreService eventScoreService;
 
     // ========================================================================
     // EVENT CRUD
@@ -203,6 +206,9 @@ public class EventService {
             }
             throw e;
         }
+
+        // Ranking score starts at 0, or inherits a decayed share of this organization's best past events.
+        eventScoreService.initializeScore(saved.getId(), organizationId, saved.getEventEndDate());
 
         // Resolve collaboratorIds supplied at creation time
         if (eventData.getCollaboratorIds() != null && !eventData.getCollaboratorIds().isEmpty()) {
@@ -410,6 +416,12 @@ public class EventService {
         }
     }
 
+    /** Recomputes an event's ranking score from its current participant count. Call whenever registrations change. */
+    public void refreshEventScore(String eventId) {
+        long count = eventParticipantRepository.countByEventId(eventId);
+        eventScoreService.recalculate(eventId, count);
+    }
+
     public Event getEventById(String eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new BusinessException.ResourceNotFoundException("Event", eventId));
@@ -614,7 +626,9 @@ public class EventService {
         EventParticipant participant = buildParticipant(userId, event, idCardDetails);
 
         try {
-            return decryptParticipant(eventParticipantRepository.save(participant));
+            EventParticipant saved = eventParticipantRepository.save(participant);
+            refreshEventScore(eventId);
+            return decryptParticipant(saved);
         } catch (DuplicateKeyException e) {
             // Two concurrent requests both passed the existsBy check above; the unique
             // (eventId, userId) index rejected the second insert. Surface a friendly
@@ -825,6 +839,7 @@ public class EventService {
         }
 
         eventParticipantRepository.delete(participant);
+        refreshEventScore(eventId);
     }
 
 
