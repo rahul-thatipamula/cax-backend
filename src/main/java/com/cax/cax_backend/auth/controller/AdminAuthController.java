@@ -34,8 +34,14 @@ import lombok.RequiredArgsConstructor;
 public class AdminAuthController {
 
     private static final String COOKIE_NAME = "access_token";
-    // 7-day fallback matches refresh token lifetime; access token expiry used when available
-    private static final int COOKIE_MAX_AGE_FALLBACK = 7 * 24 * 60 * 60;
+    private static final String REFRESH_COOKIE_NAME = "refresh_token";
+    // 15-minute fallback if jwt.expiration is unset; the refresh cookie keeps the session alive.
+    private static final int COOKIE_MAX_AGE_FALLBACK = 15 * 60;
+    // Mirrors JwtUtil.generateRefreshToken's 7-day lifetime.
+    private static final int REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+    // Scoping the refresh cookie to the auth routes keeps it off every other API
+    // call, so it is only ever in flight when it is actually being redeemed.
+    private static final String REFRESH_COOKIE_PATH = "/api/admin/auth";
 
     private final AuthService authService;
 
@@ -45,31 +51,47 @@ public class AdminAuthController {
     @Value("${jwt.expiration}")
     private long jwtExpirationMs;
 
+    private String secureFlag() {
+        return "production".equalsIgnoreCase(appEnv) ? "; Secure" : "";
+    }
+
     private void setAuthCookie(HttpServletResponse response, String token) {
         int maxAge = jwtExpirationMs > 0 ? (int) (jwtExpirationMs / 1000) : COOKIE_MAX_AGE_FALLBACK;
-        boolean secure = "production".equalsIgnoreCase(appEnv);
-        String secureFlag = secure ? "; Secure" : "";
         response.addHeader("Set-Cookie",
-                COOKIE_NAME + "=" + token + "; HttpOnly" + secureFlag + "; SameSite=Lax; Path=/; Max-Age=" + maxAge);
+                COOKIE_NAME + "=" + token + "; HttpOnly" + secureFlag() + "; SameSite=Lax; Path=/; Max-Age=" + maxAge);
+    }
+
+    private void setRefreshCookie(HttpServletResponse response, String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return;
+        }
+        response.addHeader("Set-Cookie",
+                REFRESH_COOKIE_NAME + "=" + refreshToken + "; HttpOnly" + secureFlag()
+                        + "; SameSite=Lax; Path=" + REFRESH_COOKIE_PATH + "; Max-Age=" + REFRESH_COOKIE_MAX_AGE);
     }
 
     private void clearAuthCookie(HttpServletResponse response) {
-        boolean secure = "production".equalsIgnoreCase(appEnv);
-        String secureFlag = secure ? "; Secure" : "";
         response.addHeader("Set-Cookie",
-                COOKIE_NAME + "=; HttpOnly" + secureFlag + "; SameSite=Lax; Path=/; Max-Age=0");
+                COOKIE_NAME + "=; HttpOnly" + secureFlag() + "; SameSite=Lax; Path=/; Max-Age=0");
+        response.addHeader("Set-Cookie",
+                REFRESH_COOKIE_NAME + "=; HttpOnly" + secureFlag()
+                        + "; SameSite=Lax; Path=" + REFRESH_COOKIE_PATH + "; Max-Age=0");
     }
 
-    private String extractCookieToken(HttpServletRequest request) {
+    private String extractCookie(HttpServletRequest request, String name) {
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
-                if (COOKIE_NAME.equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                if (name.equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
                     return cookie.getValue();
                 }
             }
         }
         return null;
+    }
+
+    private String extractCookieToken(HttpServletRequest request) {
+        return extractCookie(request, COOKIE_NAME);
     }
 
     @PostMapping("/google")
@@ -90,6 +112,7 @@ public class AdminAuthController {
             // the pre-existing flow (admins and org leaders — President/VP — both get in).
             String jwt = (String) result.get("token");
             setAuthCookie(response, jwt);
+            setRefreshCookie(response, (String) result.get("refreshToken"));
             // Deliberately omit the raw JWT from the response body — it lives only in the
             // HttpOnly cookie, so it's never reachable from JS on the frontend.
             return ResponseEntity.ok(Map.of("success", true, "user", user));
@@ -114,7 +137,33 @@ public class AdminAuthController {
             return ResponseEntity.status(500).body(Map.of("error", "Failed to generate token", "success", false));
         }
         setAuthCookie(response, jwt);
+        setRefreshCookie(response, (String) result.get("refreshToken"));
         return ResponseEntity.ok(Map.of("success", true, "userId", userId));
+    }
+
+    /**
+     * Silently renews the short-lived access cookie using the refresh cookie, so an
+     * admin stays signed in without the access token itself needing a long lifetime.
+     * Unauthenticated by design — it is reached precisely when the access token has
+     * already expired; the refresh cookie is the credential. AuthService.refresh
+     * rotates the refresh token on every call, so a stolen one is single-use.
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<Map<String, Object>> refresh(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = extractCookie(request, REFRESH_COOKIE_NAME);
+        if (refreshToken == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not authenticated", "success", false));
+        }
+        try {
+            Map<String, Object> result = authService.refresh(refreshToken);
+            setAuthCookie(response, (String) result.get("token"));
+            setRefreshCookie(response, (String) result.get("refreshToken"));
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            // Expired, revoked, or already-rotated token — force a clean re-login.
+            clearAuthCookie(response);
+            return ResponseEntity.status(401).body(Map.of("error", "Session expired", "success", false));
+        }
     }
 
     /** Restores the admin session from the HttpOnly cookie on page load/refresh. */
@@ -134,7 +183,12 @@ public class AdminAuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request, HttpServletResponse response) {
+        // Fall back to the refresh cookie: with a 15-minute access token, logout is
+        // often reached after it has already expired, and revocation must still happen.
         String token = extractCookieToken(request);
+        if (token == null) {
+            token = extractCookie(request, REFRESH_COOKIE_NAME);
+        }
         if (token != null) {
             authService.invalidateTokens(token);
         }

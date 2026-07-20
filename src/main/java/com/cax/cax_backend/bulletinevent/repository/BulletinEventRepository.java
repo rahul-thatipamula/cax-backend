@@ -30,5 +30,9 @@ public interface BulletinEventRepository extends MongoRepository<BulletinEvent, 
     /** Active bulletins that have already ended, scoped to global or the given college. */
     @Query("{ 'deleted': { $ne: true }, 'active': true, 'eventEndDate': { '$lte': ?1 }, '$or': [ { 'global': true }, { 'collegeIds': ?0 } ] }")
     List<BulletinEvent> findCompleted(String collegeId, Instant now);
+
+    /** Public-facing (caxone.in/postEvent): most recent live global bulletins, no auth. */
+    @Query("{ 'deleted': { $ne: true }, 'active': true, 'global': true }")
+    List<BulletinEvent> findActiveGlobal();
 }
 

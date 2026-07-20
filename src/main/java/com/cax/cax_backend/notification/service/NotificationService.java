@@ -233,6 +233,53 @@ public class NotificationService {
         return notification;
     }
 
+    /**
+     * Sends a push notification without persisting it. Use for transient reminders
+     * (e.g. water reminders) that should not appear in the in-app notification inbox
+     * or count towards the unread badge.
+     */
+    public void sendTransientPush(String userId, String title, String body, NotificationType type, Map<String, String> data) {
+        Optional<User> userOpt = userRepository.findByUserId(userId);
+        if (userOpt.isEmpty()) {
+            log.debug("User {} not found. Skipping transient push.", userId);
+            return;
+        }
+
+        User user = userOpt.get();
+        if (user.isBlocked()) {
+            log.debug("User {} is blocked. Skipping transient push.", userId);
+            return;
+        }
+
+        Optional<UserSettings> settingsOpt = settingsRepository.findByUserId(userId);
+        if (settingsOpt.isPresent()) {
+            UserSettings settings = settingsOpt.get();
+            if (!settings.isNotificationsEnabled() || !settings.isPushNotificationsEnabled()) {
+                log.debug("Notifications disabled for user {}. Skipping transient push.", userId);
+                return;
+            }
+        }
+
+        if (user.getFcmToken() == null || user.getFcmToken().isBlank()) {
+            log.debug("User {} does not have an FCM token, skipping transient push", userId);
+            return;
+        }
+
+        Map<String, String> pushData = new HashMap<>();
+        if (data != null) {
+            pushData.putAll(data);
+        }
+        pushData.put("type", (data != null && data.containsKey("type")) ? data.get("type") : type.getValue());
+
+        sendPushNotification(
+                userId,
+                com.cax.cax_backend.common.util.EncryptionUtils.decrypt(user.getFcmToken()),
+                title,
+                body,
+                pushData
+        );
+    }
+
     @Async("taskExecutor")
     public void sendNotificationToAll(String title, String body, NotificationType type, Map<String, String> data) {
         java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);

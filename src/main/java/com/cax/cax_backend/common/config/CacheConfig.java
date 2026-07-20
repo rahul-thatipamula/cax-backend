@@ -76,8 +76,18 @@ public class CacheConfig {
                 .recordStats()
                 .build());
 
+        // Arcade prompt bank: read on every round start but effectively static, so it is held
+        // far longer than the live-game caches. Nothing evicts it — a seeded or admin-edited
+        // prompt becomes visible on the next expiry, which is fine for content this static.
+        CaffeineCache arcadePromptsCache = new CaffeineCache("arcadePrompts", Caffeine.newBuilder()
+                .maximumSize(20)
+                .expireAfterWrite(30, TimeUnit.MINUTES)
+                .recordStats()
+                .build());
+
         cacheManager.setCaches(List.of(clubsCache, carouselsCache, collegesCache, adsCache,
-                bingoGameCache, bingoPlayerCountCache, bingoLeaderboardCache, bingoSignerUsageCache));
+                bingoGameCache, bingoPlayerCountCache, bingoLeaderboardCache, bingoSignerUsageCache,
+                arcadePromptsCache));
         return cacheManager;
     }
 }

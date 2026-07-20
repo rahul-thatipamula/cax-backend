@@ -124,6 +124,14 @@ public class RateLimitConfigService {
                         .keyStrategy(RateLimitKeyStrategy.IP).capacity(20).refillPerSecond(0.5)
                         .autoScaleEligible(false).build(),
 
+                // Public, unauthenticated organizer event submission (caxone.in/postEvent) — also
+                // CAPTCHA-gated (TurnstileService), but IP-keyed rate limiting is a cheap first line
+                // of defense against scripted spam before a request even reaches CAPTCHA verification.
+                RateLimitRule.builder().name("public-bulletin-submit")
+                        .pathPattern("/api/public/bulletin-events/submit").method("POST")
+                        .keyStrategy(RateLimitKeyStrategy.IP).capacity(5).refillPerSecond(0.01)
+                        .autoScaleEligible(false).build(),
+
                 // ── Bingo gameplay — the hackathon polling hotspot ──
                 RateLimitRule.builder().name("bingo-mark").pathPattern("/api/games/bingo/player/*/mark").method("POST")
                         .keyStrategy(RateLimitKeyStrategy.USER).capacity(20).refillPerSecond(1).build(),

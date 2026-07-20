@@ -41,7 +41,9 @@ public class WaterReminderScheduler {
                 log.info("Found {} users eligible for water reminder.", eligibleUsers.size());
                 for (User user : eligibleUsers) {
                     try {
-                        notificationService.createNotification(
+                        // Push-only: hydration reminders are transient and must not be
+                        // persisted to the notification inbox / unread count.
+                        notificationService.sendTransientPush(
                                 user.getUserId(),
                                 "Stay Hydrated",
                                 "This is a reminder to drink a glass of water to maintain hydration.",

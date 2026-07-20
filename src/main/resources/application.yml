@@ -73,3 +73,10 @@ r2:
   secret-key: ${R2_SECRET_KEY}
   bucket-name: ${R2_BUCKET_NAME}
   public-url: ${R2_PUBLIC_URL}
+
+# Cloudflare Turnstile (CAPTCHA for the public bulletin-event submission form)
+turnstile:
+  secret-key: ${TURNSTILE_SECRET_KEY:}
+  # Local dev only: allows submissions through when no secret is set. Leave false in
+  # production — without it an unset secret would silently disable CAPTCHA entirely.
+  allow-insecure-skip: ${TURNSTILE_ALLOW_INSECURE_SKIP:false}

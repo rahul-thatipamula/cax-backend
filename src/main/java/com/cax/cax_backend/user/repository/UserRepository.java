@@ -38,4 +38,9 @@ public interface UserRepository extends MongoRepository<User, String>, CustomUse
     boolean existsByDisplayName(String displayName);
     java.util.Optional<User> findByDisplayNameIgnoreCase(String displayName);
     List<User> findByDisplayNameContainingIgnoreCaseOrEmailContainingIgnoreCase(String displayName, String email);
+
+    /** Public landing-page stat: users who are either college-email verified (DOMAIN_MATCH)
+     *  or have an approved manual ID-card verification, and aren't blocked. */
+    @Query(value = "{ 'blocked': { $ne: true }, '$or': [ { 'idVerified': true }, { 'verificationMethod': 'DOMAIN_MATCH' } ] }", count = true)
+    long countVerifiedUsers();
 }

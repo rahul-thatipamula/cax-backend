@@ -38,6 +38,7 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/admin/auth/google",
                                 "/api/admin/auth/dev-login",
+                                "/api/admin/auth/refresh",
                                 "/api/auth/qr/**",
                                 "/api/auth/2fa/login-verify",
                                 "/api/version/**",

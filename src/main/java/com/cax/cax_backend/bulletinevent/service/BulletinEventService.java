@@ -51,7 +51,36 @@ public class BulletinEventService {
         return bulletinEventRepository.findById(id);
     }
 
+    /** Public-facing (caxone.in/postEvent): most recent live global bulletins, capped at {@code limit}. */
+    public List<BulletinEvent> getTopGlobalBulletinEvents(int limit) {
+        int cappedLimit = Math.max(1, Math.min(limit, 10));
+        return bulletinEventRepository.findActiveGlobal().stream()
+                .sorted(java.util.Comparator.comparing(BulletinEvent::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .limit(cappedLimit)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    private void validateDates(BulletinEvent event) {
+        if (event.getEventStartDate() != null && event.getEventEndDate() != null) {
+            if (event.getEventEndDate().isBefore(event.getEventStartDate())) {
+                throw new IllegalArgumentException("Event end date cannot be before start date");
+            }
+        }
+        if (event.getRegistrationEndDate() != null && event.getEventStartDate() != null) {
+            if (event.getEventStartDate().isBefore(event.getRegistrationEndDate())) {
+                throw new IllegalArgumentException("Registration deadline cannot be after event start date");
+            }
+        }
+        if (event.getRegistrationEndDate() != null && event.getEventEndDate() != null) {
+            if (event.getEventEndDate().isBefore(event.getRegistrationEndDate())) {
+                throw new IllegalArgumentException("Registration deadline cannot be after event end date");
+            }
+        }
+    }
+
     public BulletinEvent createBulletinEvent(BulletinEvent bulletinEvent) {
+        validateDates(bulletinEvent);
         bulletinEvent.setCreatedAt(Instant.now());
         bulletinEvent.setUpdatedAt(Instant.now());
         bulletinEvent.setActive(true);
@@ -74,6 +103,7 @@ public class BulletinEventService {
     }
 
     public BulletinEvent updateBulletinEvent(String id, BulletinEvent updateData) {
+        validateDates(updateData);
         BulletinEvent existing = bulletinEventRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("BulletinEvent not found"));
 
