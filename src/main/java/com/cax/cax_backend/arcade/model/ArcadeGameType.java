@@ -8,13 +8,13 @@ package com.cax.cax_backend.arcade.model;
 public enum ArcadeGameType {
 
     /** A prompt is shown to everyone; each player votes for a person. Highest vote wins the round. */
-    MOST_LIKELY_TO(3, 20),
+    MOST_LIKELY_TO(2, 20),
 
     /** Everyone secretly answers a prompt; answers show anonymously; players guess the author. */
-    WHO_SAID_IT(3, 25),
+    WHO_SAID_IT(2, 25),
 
     /** Everyone gets a secret word except one imposter; each gives a one-word clue; the group votes. */
-    IMPOSTER(3, 25);
+    IMPOSTER(2, 25);
 
     /** Minimum players required before the host may start this game. */
     private final int minPlayers;

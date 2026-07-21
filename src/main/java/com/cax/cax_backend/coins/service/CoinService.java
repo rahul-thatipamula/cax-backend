@@ -6,6 +6,7 @@ import com.cax.cax_backend.coins.model.CoinTransaction;
 import com.cax.cax_backend.coins.repository.AdRewardConfigRepository;
 import com.cax.cax_backend.coins.repository.CoinConfigRepository;
 import com.cax.cax_backend.coins.repository.CoinTransactionRepository;
+import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -63,11 +64,16 @@ public class CoinService {
 
     // Called internally by ThoughtBoostService
     public void deductCoins(String userId, double amount, String referenceId, String note) {
+        deductCoins(userId, amount, referenceId, note, "SPENT_BOOST");
+    }
+
+    // Called internally by ArcadeSessionService
+    public void deductCoins(String userId, double amount, String referenceId, String note, String type) {
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         if (user.getCoins() < amount) {
-            throw new IllegalStateException("Insufficient coins");
+            throw new BusinessException.InsufficientBalanceException(amount, user.getCoins());
         }
 
         double newBalance = user.getCoins() - amount;
@@ -78,7 +84,7 @@ public class CoinService {
         CoinTransaction tx = CoinTransaction.builder()
                 .userId(userId)
                 .amount(-amount)
-                .type("SPENT_BOOST")
+                .type(type)
                 .referenceId(referenceId)
                 .note(note)
                 .balanceAfter(newBalance)
@@ -103,6 +109,14 @@ public class CoinService {
     public CoinConfig updateBoostCost(double boostCost, String adminUserId) {
         CoinConfig config = getConfig();
         config.setBoostCost(boostCost);
+        config.setUpdatedAt(Instant.now());
+        config.setUpdatedBy(adminUserId);
+        return coinConfigRepository.save(config);
+    }
+
+    public CoinConfig updateArcadeGameCost(double arcadeGameCost, String adminUserId) {
+        CoinConfig config = getConfig();
+        config.setArcadeGameCost(arcadeGameCost);
         config.setUpdatedAt(Instant.now());
         config.setUpdatedBy(adminUserId);
         return coinConfigRepository.save(config);

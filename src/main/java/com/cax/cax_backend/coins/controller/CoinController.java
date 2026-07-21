@@ -63,6 +63,17 @@ public class CoinController {
         return ResponseEntity.ok(ApiResponse.success("Updated", coinService.updateBoostCost(cost, auth.getName())));
     }
 
+    @PutMapping("/admin/arcade-game-cost")
+    public ResponseEntity<ApiResponse<CoinConfig>> updateArcadeGameCost(
+            @RequestBody Map<String, Double> body,
+            Authentication auth) {
+        Double cost = body.get("arcadeGameCost");
+        if (cost == null || cost < 0) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("arcadeGameCost must not be negative", 400, 400));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Updated", coinService.updateArcadeGameCost(cost, auth.getName())));
+    }
+
     @GetMapping("/admin/ad-configs")
     public ResponseEntity<ApiResponse<List<AdRewardConfig>>> listAdConfigs() {
         return ResponseEntity.ok(ApiResponse.success(coinService.getAllAdConfigs()));

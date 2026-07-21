@@ -4,8 +4,6 @@ import com.cax.cax_backend.arcade.dto.ArcadeStateResponse;
 import com.cax.cax_backend.arcade.engine.ArcadeGameEngine;
 import com.cax.cax_backend.arcade.model.*;
 import com.cax.cax_backend.arcade.repository.ArcadeRoundRepository;
-import com.cax.cax_backend.arcade.repository.ArcadeSubmissionRepository;
-import com.cax.cax_backend.arcade.repository.ArcadeVoteRepository;
 import com.cax.cax_backend.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,8 +27,6 @@ public class ArcadeStateService {
 
     private final ArcadeSessionService sessionService;
     private final ArcadeRoundRepository roundRepository;
-    private final ArcadeSubmissionRepository submissionRepository;
-    private final ArcadeVoteRepository voteRepository;
     private final List<ArcadeGameEngine> engineBeans;
 
     private Map<ArcadeGameType, ArcadeGameEngine> engines;
@@ -70,10 +66,10 @@ public class ArcadeStateService {
                 ? roundRepository.findBySessionIdAndRoundNo(session.getId(), session.getCurrentRound()).orElse(null)
                 : null;
 
-        List<ArcadeSubmission> submissions = round == null
-                ? List.of() : submissionRepository.findByRoundId(round.getId());
-        List<ArcadeVote> votes = round == null
-                ? List.of() : voteRepository.findByRoundId(round.getId());
+        // During active play these come from the in-memory runtime (they are not written to
+        // Mongo until reveal); once flushed, the same helpers serve the durable copy.
+        List<ArcadeSubmission> submissions = sessionService.submissionsFor(session, round);
+        List<ArcadeVote> votes = sessionService.votesFor(session, round);
 
         Set<String> submitted = new HashSet<>();
         submissions.forEach(s -> submitted.add(s.getCaxId()));
@@ -129,7 +125,7 @@ public class ArcadeStateService {
                 .gameCode(session.getGameCode())
                 .gameType(session.getGameType())
                 .phase(session.getPhase())
-                .stateVersion(session.getStateVersion())
+                .stateVersion(sessionService.effectiveStateVersion(session))
                 .currentRound(session.getCurrentRound())
                 .totalRounds(session.getTotalRounds())
                 .phaseDeadlineAtMillis(session.getPhaseDeadlineAt() == null

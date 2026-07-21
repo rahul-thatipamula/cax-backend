@@ -23,4 +23,11 @@ public interface ArcadeSessionRepository extends MongoRepository<ArcadeSession, 
 
     /** Idle sessions eligible for reaping, so abandoned lobbies do not hold their codes forever. */
     List<ArcadeSession> findByPhaseNotAndLastActivityAtBefore(ArcadePhase phase, Instant cutoff);
+
+    /**
+     * Live sessions whose current phase has run past its deadline. Drives server-side timer
+     * advancement so a round ends on time even when every client is idle on the socket rather
+     * than polling. LOBBY sessions carry no deadline, so they never match.
+     */
+    List<ArcadeSession> findByPhaseNotAndPhaseDeadlineAtBefore(ArcadePhase phase, Instant now);
 }

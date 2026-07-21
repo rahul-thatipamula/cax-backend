@@ -47,6 +47,10 @@ public class SecurityConfig {
                                 "/api/ads/*/click",
                                 // Bingo: read-only public endpoints (game info, card view, leaderboard)
                                 "/api/games/bingo/public/**",
+                                // Arcade WS handshake: authenticated via ArcadeHandshakeInterceptor's
+                                // own JWT check (query param), since the upgrade request can't carry
+                                // a normal Authorization header the way REST calls do.
+                                "/ws-arcade/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"

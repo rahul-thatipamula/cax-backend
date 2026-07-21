@@ -25,6 +25,9 @@ public class CoinConfig {
     @Builder.Default
     private double boostCost = 50.0;
 
+    @Builder.Default
+    private double arcadeGameCost = 20.0;
+
     private Instant updatedAt;
     private String updatedBy;
 }

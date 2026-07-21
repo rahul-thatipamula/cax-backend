@@ -7,6 +7,7 @@ import com.cax.cax_backend.arcade.model.ArcadeSession;
 import com.cax.cax_backend.arcade.service.ArcadeHistoryService;
 import com.cax.cax_backend.arcade.service.ArcadeSessionService;
 import com.cax.cax_backend.arcade.service.ArcadeStateService;
+import com.cax.cax_backend.arcade.ws.ArcadeBroadcaster;
 import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.common.exception.BusinessException;
 import io.jsonwebtoken.Claims;
@@ -39,6 +40,7 @@ public class ArcadeController {
     private final ArcadeSessionService sessionService;
     private final ArcadeStateService stateService;
     private final ArcadeHistoryService historyService;
+    private final ArcadeBroadcaster broadcaster;
 
     // ── Hub ───────────────────────────────────────────────────────────────────
 
@@ -65,6 +67,7 @@ public class ArcadeController {
     public ResponseEntity<ApiResponse<Map<String, String>>> join(
             @PathVariable String gameCode, Authentication auth) {
         ArcadeSession session = sessionService.joinSession(gameCode, requireUserId(auth));
+        broadcaster.stateChanged(session.getGameCode());
         return ResponseEntity.ok(ApiResponse.success("Joined",
                 Map.of("gameCode", session.getGameCode(),
                         "gameType", session.getGameType().name())));
@@ -74,6 +77,7 @@ public class ArcadeController {
     public ResponseEntity<ApiResponse<String>> leave(
             @PathVariable String gameCode, Authentication auth) {
         sessionService.leaveSession(gameCode, requireUserId(auth));
+        broadcaster.stateChanged(gameCode);
         return ResponseEntity.ok(ApiResponse.success("Left the game"));
     }
 
@@ -104,6 +108,7 @@ public class ArcadeController {
     public ResponseEntity<ApiResponse<String>> start(
             @PathVariable String gameCode, Authentication auth) {
         sessionService.startSession(gameCode, requireUserId(auth));
+        broadcaster.stateChanged(gameCode);
         return ResponseEntity.ok(ApiResponse.success("Game started"));
     }
 
@@ -113,6 +118,7 @@ public class ArcadeController {
             @RequestBody ArcadeRequests.Submit req,
             Authentication auth) {
         sessionService.submit(gameCode, requireUserId(auth), req);
+        broadcaster.stateChanged(gameCode);
         return ResponseEntity.ok(ApiResponse.success("Locked in"));
     }
 
@@ -122,6 +128,7 @@ public class ArcadeController {
             @RequestBody ArcadeRequests.Vote req,
             Authentication auth) {
         sessionService.vote(gameCode, requireUserId(auth), req);
+        broadcaster.stateChanged(gameCode);
         return ResponseEntity.ok(ApiResponse.success("Vote counted"));
     }
 
@@ -130,6 +137,7 @@ public class ArcadeController {
     public ResponseEntity<ApiResponse<String>> ready(
             @PathVariable String gameCode, Authentication auth) {
         sessionService.markReady(gameCode, requireUserId(auth));
+        broadcaster.stateChanged(gameCode);
         return ResponseEntity.ok(ApiResponse.success("Ready"));
     }
 
@@ -137,6 +145,7 @@ public class ArcadeController {
     public ResponseEntity<ApiResponse<String>> end(
             @PathVariable String gameCode, Authentication auth) {
         sessionService.endSession(gameCode, requireUserId(auth));
+        broadcaster.stateChanged(gameCode);
         return ResponseEntity.ok(ApiResponse.success("Game ended"));
     }
 

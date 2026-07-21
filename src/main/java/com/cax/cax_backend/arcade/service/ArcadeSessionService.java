@@ -5,11 +5,16 @@ import com.cax.cax_backend.arcade.engine.ArcadeGameEngine;
 import com.cax.cax_backend.arcade.engine.RoundOutcome;
 import com.cax.cax_backend.arcade.model.*;
 import com.cax.cax_backend.arcade.repository.*;
+import com.cax.cax_backend.arcade.event.ArcadeParticipantJoinedEvent;
+import com.cax.cax_backend.arcade.runtime.ArcadeRuntimeStore;
+import com.cax.cax_backend.arcade.runtime.ArcadeSessionRuntime;
+import com.cax.cax_backend.coins.service.CoinService;
 import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -53,6 +58,9 @@ public class ArcadeSessionService {
     private final UserRepository userRepository;
     private final MongoTemplate mongoTemplate;
     private final List<ArcadeGameEngine> engineBeans;
+    private final CoinService coinService;
+    private final ArcadeRuntimeStore runtimeStore;
+    private final ApplicationEventPublisher eventPublisher;
 
     private Map<ArcadeGameType, ArcadeGameEngine> engines;
 
@@ -170,8 +178,17 @@ public class ArcadeSessionService {
         Integer targetScore = req.getTargetScore() == null ? null
                 : Math.max(100, Math.min(5000, req.getTargetScore()));
 
+        String gameCode = generateGameCode();
+
+        double cost = coinService.getConfig().getArcadeGameCost();
+        if (cost > 0) {
+            // Deducted before the session is persisted, so a failed or insufficient
+            // balance never leaves an orphaned game a player didn't pay for.
+            coinService.deductCoins(userId, cost, gameCode, "Created arcade game", "SPENT_ARCADE");
+        }
+
         ArcadeSession session = ArcadeSession.builder()
-                .gameCode(generateGameCode())
+                .gameCode(gameCode)
                 .gameType(req.getGameType())
                 .hostUserId(userId)
                 .hostCaxId(host.getCaxId())
@@ -228,6 +245,12 @@ public class ArcadeSessionService {
 
         upsertParticipant(session, user, false);
         bumpVersion(session.getId());
+
+        // Fire-and-forget: the listener pushes to the host and lights up the lobby feed off the
+        // request thread, so a slow push never delays the joining player.
+        eventPublisher.publishEvent(new ArcadeParticipantJoinedEvent(
+                session.getGameCode(), session.getHostUserId(), user.getCaxId(),
+                user.getThoughtsDisplayName()));
         return session;
     }
 
@@ -328,16 +351,55 @@ public class ArcadeSessionService {
      * Refreshes the caller's presence. Called on every state poll, so "who is still here" is
      * a natural by-product of clients staying subscribed rather than a separate heartbeat the
      * client could forget to send.
+     *
+     * <p>Kept purely in memory: this was the single hottest write in the feature (one Mongo
+     * update per client per poll). {@link #allPlayers} overlays it back onto the persisted
+     * {@code lastSeenAt} so every presence check downstream sees the live value.
      */
     public void touch(ArcadeSession session, String caxId) {
-        mongoTemplate.updateFirst(
-                Query.query(Criteria.where("sessionId").is(session.getId()).and("caxId").is(caxId)),
-                new Update().set("lastSeenAt", Instant.now()),
-                ArcadeParticipant.class);
+        runtimeStore.get(session.getId()).touch(caxId);
     }
 
     public List<ArcadeParticipant> allPlayers(ArcadeSession session) {
-        return participantRepository.findBySessionIdOrderByScoreDesc(session.getId());
+        List<ArcadeParticipant> players = participantRepository.findBySessionIdOrderByScoreDesc(session.getId());
+        ArcadeSessionRuntime runtime = runtimeStore.get(session.getId());
+        for (ArcadeParticipant p : players) {
+            Instant liveSeen = runtime.lastSeen(p.getCaxId());
+            // Presence lives in memory; a rejoin also refreshes it in Mongo, so take whichever
+            // is later so a just-reconnected player isn't wrongly read as absent after a restart.
+            if (liveSeen != null && (p.getLastSeenAt() == null || liveSeen.isAfter(p.getLastSeenAt()))) {
+                p.setLastSeenAt(liveSeen);
+            }
+        }
+        return players;
+    }
+
+    // ── In-memory round data (submissions / votes) ────────────────────────────
+    // During SUBMITTING/VOTING these live in the runtime, not Mongo; they are flushed to Mongo
+    // once at reveal. Reads go through these helpers so a round that is still being played is
+    // served from memory and a finished/pre-flush round is served from the durable copy.
+
+    public List<ArcadeSubmission> submissionsFor(ArcadeSession session, ArcadeRound round) {
+        if (round == null) return List.of();
+        ArcadeSessionRuntime runtime = runtimeStore.get(session.getId());
+        if (runtime.tracksRound(round.getId())) return runtime.submissions(round.getId());
+        return submissionRepository.findByRoundId(round.getId());
+    }
+
+    public List<ArcadeVote> votesFor(ArcadeSession session, ArcadeRound round) {
+        if (round == null) return List.of();
+        ArcadeSessionRuntime runtime = runtimeStore.get(session.getId());
+        if (runtime.tracksRound(round.getId())) return runtime.votes(round.getId());
+        return voteRepository.findByRoundId(round.getId());
+    }
+
+    /**
+     * The version clients poll against: the durable session version (bumped by joins, leaves and
+     * phase transitions) scaled up, plus the in-memory submit/vote counter. Scaling keeps the two
+     * sources in disjoint ranges so a transition can never collide with an answer count.
+     */
+    public long effectiveStateVersion(ArcadeSession session) {
+        return session.getStateVersion() * 1000L + (runtimeStore.get(session.getId()).actionCounter() % 1000L);
     }
 
     public List<ArcadeParticipant> presentPlayers(ArcadeSession session) {
@@ -394,6 +456,9 @@ public class ArcadeSessionService {
             return;
         }
 
+        // Start tracking this round's answers in memory; also clears the previous round's.
+        runtimeStore.get(session.getId()).beginRound(round.getId());
+
         ArcadePhase first = engine.hasSubmissionPhase() ? ArcadePhase.SUBMITTING : ArcadePhase.VOTING;
         int seconds = engine.hasSubmissionPhase() ? session.getSubmitSeconds() : session.getVoteSeconds();
 
@@ -447,7 +512,10 @@ public class ArcadeSessionService {
 
         String content = engineFor(session.getGameType()).normaliseSubmission(req == null ? null : req.getContent());
 
+        // The id is assigned here rather than by Mongo because votes in Who Said It reference a
+        // submission by id during VOTING, before this row is ever flushed to the database.
         ArcadeSubmission submission = ArcadeSubmission.builder()
+                .id(UUID.randomUUID().toString())
                 .roundId(round.getId())
                 .sessionId(session.getId())
                 .roundNo(round.getRoundNo())
@@ -455,15 +523,14 @@ public class ArcadeSessionService {
                 .content(content)
                 .build();
 
-        try {
-            submissionRepository.save(submission);
-        } catch (DuplicateKeyException e) {
-            // The unique index on (roundId, caxId) is what makes one-answer-per-round a
-            // storage guarantee rather than a UI convention.
+        boolean stored = runtimeStore.get(session.getId()).addSubmission(round.getId(), submission);
+        if (!stored) {
+            // In-memory one-answer-per-round check, standing in for the unique index while the
+            // submission is held in memory until reveal.
             throw new BusinessException.ResourceConflictException("You've already answered this round");
         }
 
-        bumpVersion(session.getId());
+        runtimeStore.get(session.getId()).bumpAction();
         advanceIfDue(getSessionOrThrow(gameCode));
     }
 
@@ -493,11 +560,12 @@ public class ArcadeSessionService {
             throw new BusinessException.BadRequestException("That person isn't in this game");
         }
 
-        List<ArcadeSubmission> submissions = submissionRepository.findByRoundId(round.getId());
+        List<ArcadeSubmission> submissions = submissionsFor(session, round);
         engineFor(session.getGameType())
                 .validateVote(round, players, submissions, participant.getCaxId(), req);
 
         ArcadeVote vote = ArcadeVote.builder()
+                .id(UUID.randomUUID().toString())
                 .roundId(round.getId())
                 .sessionId(session.getId())
                 .roundNo(round.getRoundNo())
@@ -506,13 +574,12 @@ public class ArcadeSessionService {
                 .targetSubmissionId(req.getTargetSubmissionId())
                 .build();
 
-        try {
-            voteRepository.save(vote);
-        } catch (DuplicateKeyException e) {
+        boolean stored = runtimeStore.get(session.getId()).addVote(round.getId(), vote);
+        if (!stored) {
             throw new BusinessException.ResourceConflictException("You've already voted this round");
         }
 
-        bumpVersion(session.getId());
+        runtimeStore.get(session.getId()).bumpAction();
         advanceIfDue(getSessionOrThrow(gameCode));
     }
 
@@ -609,9 +676,9 @@ public class ArcadeSessionService {
 
         Set<String> acted = new HashSet<>();
         if (submissions) {
-            submissionRepository.findByRoundId(round.getId()).forEach(s -> acted.add(s.getCaxId()));
+            submissionsFor(session, round).forEach(s -> acted.add(s.getCaxId()));
         } else {
-            voteRepository.findByRoundId(round.getId()).forEach(v -> acted.add(v.getVoterCaxId()));
+            votesFor(session, round).forEach(v -> acted.add(v.getVoterCaxId()));
         }
 
         for (ArcadeParticipant p : present) {
@@ -645,21 +712,43 @@ public class ArcadeSessionService {
         if (round == null) return updated;
 
         List<ArcadeParticipant> players = allPlayers(updated);
-        List<ArcadeSubmission> submissions = submissionRepository.findByRoundId(round.getId());
-        List<ArcadeVote> votes = voteRepository.findByRoundId(round.getId());
+        List<ArcadeSubmission> submissions = submissionsFor(updated, round);
+        List<ArcadeVote> votes = votesFor(updated, round);
 
+        // Scoring mutates each vote's `correct` flag, so this must run before the flush that
+        // persists them.
         RoundOutcome outcome = engineFor(updated.getGameType())
                 .scoreRound(round, players, submissions, votes);
 
-        applyOutcome(updated, round, players, votes, outcome);
+        flushRound(round, submissions, votes);
+        applyOutcome(updated, round, players, outcome);
         return reload(updated);
     }
 
-    /** Persists a round's result: score increments, round metadata and per-vote correctness. */
+    /**
+     * The single durable write of a round's answers: submissions and votes accumulated in memory
+     * during play are inserted here, once, with each vote's reveal-time {@code correct} flag
+     * already set by scoring. Whichever caller won the guarded transition to REVEAL is the only
+     * one that reaches this, so a flush cannot happen twice for the same round.
+     */
+    private void flushRound(ArcadeRound round, List<ArcadeSubmission> submissions, List<ArcadeVote> votes) {
+        try {
+            if (!submissions.isEmpty()) submissionRepository.saveAll(submissions);
+            if (!votes.isEmpty()) voteRepository.saveAll(votes);
+        } catch (DuplicateKeyException e) {
+            // In-memory dedup makes this unreachable in normal play; if a restart-era duplicate
+            // slips through, don't abort the reveal — the round is already scored.
+            log.warn("Duplicate on round flush for round {}: {}", round.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Persists a round's result: score increments and round metadata. Per-vote correctness is
+     * already set on the vote rows by {@link #flushRound}, which runs just before this.
+     */
     private void applyOutcome(ArcadeSession session,
                               ArcadeRound round,
                               List<ArcadeParticipant> players,
-                              List<ArcadeVote> votes,
                               RoundOutcome outcome) {
 
         for (Map.Entry<String, Integer> entry : outcome.getDeltas().entrySet()) {
@@ -680,13 +769,6 @@ public class ArcadeSessionService {
                         new Update().inc("roundsPlayed", 1),
                         ArcadeParticipant.class);
             }
-        }
-
-        for (ArcadeVote v : votes) {
-            mongoTemplate.updateFirst(
-                    Query.query(Criteria.where("id").is(v.getId())),
-                    new Update().set("correct", v.isCorrect()),
-                    ArcadeVote.class);
         }
 
         mongoTemplate.updateFirst(
@@ -763,6 +845,7 @@ public class ArcadeSessionService {
                         .unset("phaseDeadlineAt"));
         if (updated == null) return reload(session);
         writeResult(updated, reason);
+        runtimeStore.discard(session.getId());
         return reload(updated);
     }
 
@@ -777,7 +860,10 @@ public class ArcadeSessionService {
                         .inc("stateVersion", 1),
                 FindAndModifyOptions.options().returnNew(true),
                 ArcadeSession.class);
-        if (updated != null) writeResult(updated, reason);
+        if (updated != null) {
+            writeResult(updated, reason);
+            runtimeStore.discard(session.getId());
+        }
     }
 
     /**
@@ -889,6 +975,32 @@ public class ArcadeSessionService {
             endSessionInternal(session, "Abandoned");
         }
         return idle.size();
+    }
+
+    /**
+     * Advances every live session whose phase deadline has passed, returning the codes of those
+     * that actually moved. This is what lets the games run on a server-side clock instead of
+     * needing a client to poll: a round still ends on time when everyone is sitting idle on the
+     * WebSocket. Early "everyone answered" advances still happen inline on the submit/vote call.
+     */
+    public List<String> advanceDueSessions() {
+        List<ArcadeSession> due =
+                sessionRepository.findByPhaseNotAndPhaseDeadlineAtBefore(ArcadePhase.FINISHED, Instant.now());
+        List<String> changed = new ArrayList<>();
+        for (ArcadeSession session : due) {
+            try {
+                long beforeVersion = session.getStateVersion();
+                ArcadePhase beforePhase = session.getPhase();
+                ArcadeSession after = advanceIfDue(session);
+                if (after != null
+                        && (after.getStateVersion() != beforeVersion || after.getPhase() != beforePhase)) {
+                    changed.add(after.getGameCode());
+                }
+            } catch (Exception e) {
+                log.warn("Arcade: failed to advance session {}", session.getGameCode(), e);
+            }
+        }
+        return changed;
     }
 
     private String generateGameCode() {

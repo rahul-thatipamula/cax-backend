@@ -6,7 +6,7 @@ public class NotificationEnums {
 
     public enum NotificationType {
         FEED("feed"), SYSTEM("system"),
-        EVENT("event");
+        EVENT("event"), ARCADE("arcade");
         private final String value;
         NotificationType(String v) { this.value = v; }
         @JsonValue public String getValue() { return value; }
