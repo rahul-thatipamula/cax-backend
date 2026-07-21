@@ -19,7 +19,7 @@ public class UserSettings {
     @Id
     private String id;
 
-    @Indexed
+    @Indexed(unique = true, name = "userId_unique")
     private String userId;
 
     // Notification settings

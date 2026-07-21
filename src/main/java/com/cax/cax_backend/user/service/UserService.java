@@ -138,7 +138,9 @@ public class UserService {
         User user = getUserByUserId(userId);
         user.setWaterReminderSubscribed(subscribed);
         user.setUpdatedAt(java.time.Instant.now());
-        return saveUser(user);
+        User saved = saveUser(user);
+        eventPublisher.publishEvent(new com.cax.cax_backend.user.event.WaterReminderToggledEvent(this, saved, subscribed));
+        return saved;
     }
 
     private User decryptUser(User user) {

@@ -2,8 +2,14 @@ package com.cax.cax_backend.settings.service;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.cax.cax_backend.settings.dto.SettingsDTO;
@@ -17,31 +23,22 @@ import lombok.RequiredArgsConstructor;
 public class SettingsService {
 
     private final SettingsRepository settingsRepository;
+    private final MongoTemplate mongoTemplate;
 
     /**
-     * Fetch user settings, creating defaults if they don't exist
+     * Fetch user settings, creating defaults if they don't exist.
+     *
+     * Uses an atomic upsert rather than find-then-save: two concurrent calls
+     * for the same brand-new user used to both see an empty list and both
+     * insert a default doc, leaving duplicate userId rows that later crashed
+     * every plain findByUserId() lookup with "returned non unique result".
      */
     public UserSettings getSettings(String userId) {
-        java.util.List<UserSettings> settingsList = settingsRepository.findAllByUserId(userId);
-        if (settingsList.isEmpty()) {
-            // Create default settings if they don't exist
-            UserSettings defaultSettings = UserSettings.builder()
-                    .userId(userId)
-                    .notificationsEnabled(true)
-                    .emailNotificationsEnabled(true)
-                    .pushNotificationsEnabled(true)
-                    .darkMode(false)
-                    .language("English")
-                    .showOnlineStatus(true)
-                    .allowMessages(true)
-                    .createdAt(Instant.now())
-                    .updatedAt(Instant.now())
-                    .build();
-            return settingsRepository.save(defaultSettings);
-        } else {
+        List<UserSettings> settingsList = settingsRepository.findAllByUserId(userId);
+        if (!settingsList.isEmpty()) {
             UserSettings primarySettings = settingsList.get(0);
             if (settingsList.size() > 1) {
-                // Soft-delete all duplicate settings documents to clean up the DB
+                // Soft-delete leftover duplicates to clean up the DB
                 for (int i = 1; i < settingsList.size(); i++) {
                     try {
                         UserSettings duplicate = settingsList.get(i);
@@ -53,6 +50,24 @@ public class SettingsService {
             }
             return primarySettings;
         }
+
+        Query query = new Query(Criteria.where("userId").is(userId).and("deleted").ne(true));
+        Update update = new Update()
+                .setOnInsert("userId", userId)
+                .setOnInsert("notificationsEnabled", true)
+                .setOnInsert("emailNotificationsEnabled", true)
+                .setOnInsert("pushNotificationsEnabled", true)
+                .setOnInsert("darkMode", false)
+                .setOnInsert("language", "English")
+                .setOnInsert("showOnlineStatus", true)
+                .setOnInsert("allowMessages", true)
+                .setOnInsert("deleted", false)
+                .setOnInsert("createdAt", Instant.now())
+                .setOnInsert("updatedAt", Instant.now());
+        return mongoTemplate.findAndModify(
+                query, update,
+                FindAndModifyOptions.options().upsert(true).returnNew(true),
+                UserSettings.class);
     }
 
     /**

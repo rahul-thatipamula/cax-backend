@@ -35,6 +35,9 @@ public interface UserRepository extends MongoRepository<User, String>, CustomUse
     @Query("{ 'waterReminderSubscribed': true, 'blocked': false, 'fcmToken': { $exists: true, $ne: null }, '$or': [ { 'lastWaterReminderSentAt': { '$exists': false } }, { 'lastWaterReminderSentAt': null }, { 'lastWaterReminderSentAt': { '$lt': ?0 } } ] }")
     List<User> findUsersForWaterReminder(java.time.Instant threshold);
 
+    @Query(value = "{ 'collegeDetails.collegeId': ?0, 'waterReminderSubscribed': true }", count = true)
+    long countWaterReminderSubscribedByCollegeId(String collegeId);
+
     boolean existsByDisplayName(String displayName);
     java.util.Optional<User> findByDisplayNameIgnoreCase(String displayName);
     List<User> findByDisplayNameContainingIgnoreCaseOrEmailContainingIgnoreCase(String displayName, String email);

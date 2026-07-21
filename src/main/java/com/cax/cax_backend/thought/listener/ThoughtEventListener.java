@@ -3,9 +3,11 @@ package com.cax.cax_backend.thought.listener;
 import com.cax.cax_backend.common.enums.NotificationEnums.NotificationType;
 import com.cax.cax_backend.notification.service.NotificationService;
 import com.cax.cax_backend.thought.event.ThoughtCommentedEvent;
+import com.cax.cax_backend.thought.event.ThoughtCreatedEvent;
 import com.cax.cax_backend.thought.event.ThoughtDisabledEvent;
 import com.cax.cax_backend.thought.event.ThoughtLikedEvent;
 import com.cax.cax_backend.thought.model.Thought;
+import com.cax.cax_backend.thought.repository.ThoughtRepository;
 import com.cax.cax_backend.thought.service.ThoughtEngagementService;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
@@ -26,6 +28,42 @@ public class ThoughtEventListener {
     private final NotificationService notificationService;
     private final UserService userService;
     private final ThoughtEngagementService engagementService;
+    private final ThoughtRepository thoughtRepository;
+
+    @Async("taskExecutor")
+    @EventListener
+    public void handleThoughtCreated(ThoughtCreatedEvent event) {
+        Thought thought = event.getThought();
+        try {
+            long postCount = thoughtRepository.countActiveByUserId(thought.getUserId());
+            if (postCount != 1) return;
+
+            Map<String, String> data = new HashMap<>();
+            data.put("type", "FIRST_POST");
+            data.put("postId", thought.getId());
+            data.put("deepLink", "app://feed/post/" + thought.getId());
+
+            // Congratulate the poster
+            notificationService.createNotification(
+                    thought.getUserId(),
+                    "You're live! 🎉",
+                    "Your first thought \"" + thought.getHeading() + "\" is now on the feed. Keep sharing to grow your voice on campus!",
+                    NotificationType.FEED,
+                    data
+            );
+
+            // Broadcast to every other user so their first post gets discovered
+            notificationService.sendNotificationToAll(
+                    "New voice on campus! 🎉",
+                    thought.getCreatorName() + " just shared their first thought: \"" + thought.getHeading() + "\"",
+                    NotificationType.FEED,
+                    data,
+                    thought.getUserId()
+            );
+        } catch (Exception e) {
+            log.error("Failed to process ThoughtCreatedEvent: {}", e.getMessage(), e);
+        }
+    }
 
     @Async("taskExecutor")
     @EventListener

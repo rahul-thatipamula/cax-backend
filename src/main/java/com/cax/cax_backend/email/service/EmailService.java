@@ -34,7 +34,7 @@ public class EmailService {
 
     private boolean isEmailEnabled(String userId) {
         if (userId == null) return true;
-        return settingsRepository.findByUserId(userId)
+        return settingsRepository.findAllByUserId(userId).stream().findFirst()
                 .map(s -> s.isNotificationsEnabled() && s.isEmailNotificationsEnabled())
                 .orElse(true);
     }

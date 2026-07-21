@@ -1,6 +1,8 @@
 package com.cax.cax_backend.thought.service;
 
 import com.cax.cax_backend.common.enums.NotificationEnums.NotificationType;
+import com.cax.cax_backend.notification.model.ThoughtEngagementMilestoneState;
+import com.cax.cax_backend.notification.repository.ThoughtEngagementMilestoneStateRepository;
 import com.cax.cax_backend.notification.service.NotificationService;
 import com.cax.cax_backend.thought.model.Thought;
 import com.cax.cax_backend.thought.model.ThoughtEngagementScore;
@@ -8,6 +10,11 @@ import com.cax.cax_backend.thought.repository.ThoughtEngagementScoreRepository;
 import com.cax.cax_backend.thought.repository.ThoughtRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -38,11 +45,19 @@ public class ThoughtEngagementService {
      */
     private static final double TRENDING_THRESHOLD = 1.0;
 
+    // Engagement milestone ladders (docs/engagement). Steps increase, then
+    // repeat at the size of the last step (e.g. likes: ...500, 1000, 2000, 3000...).
+    private static final int[] LIKE_MILESTONE_STEPS = {10, 25, 50, 100, 250, 500, 1000};
+    private static final int[] COMMENT_MILESTONE_STEPS = {5, 10, 25, 50, 100};
+
     private final ThoughtEngagementScoreRepository scoreRepository;
+    private final ThoughtEngagementMilestoneStateRepository milestoneStateRepository;
     private final ThoughtRepository thoughtRepository;
     private final NotificationService notificationService;
+    private final MongoTemplate mongoTemplate;
 
-    /** Called after a like is toggled — updates count and recomputes score. */
+    /** Called after a like is toggled — updates count, recomputes score, and
+     *  notifies the author once if a new like milestone was crossed. */
     @Async("taskExecutor")
     public void onLikeChanged(Thought thought) {
         ThoughtEngagementScore score = getOrCreate(thought);
@@ -50,9 +65,12 @@ public class ThoughtEngagementService {
         score.setEngagementScore(compute(score, thought));
         score.setLastComputedAt(Instant.now());
         scoreRepository.save(score);
+
+        checkLikeMilestone(thought, score.getLikeCount());
     }
 
-    /** Called after a comment is added or deleted — updates count and recomputes score. */
+    /** Called after a comment is added or deleted — updates count, recomputes
+     *  score, and notifies the author once if a new comment milestone was crossed. */
     @Async("taskExecutor")
     public void onCommentChanged(Thought thought) {
         ThoughtEngagementScore score = getOrCreate(thought);
@@ -60,6 +78,48 @@ public class ThoughtEngagementService {
         score.setEngagementScore(compute(score, thought));
         score.setLastComputedAt(Instant.now());
         scoreRepository.save(score);
+
+        checkCommentMilestone(thought, score.getCommentCount());
+    }
+
+    private void checkLikeMilestone(Thought thought, int likeCount) {
+        ThoughtEngagementMilestoneState state = getOrCreateMilestoneState(thought.getId());
+        int milestone = highestMilestoneReached(likeCount, LIKE_MILESTONE_STEPS);
+        if (milestone <= state.getLastLikeMilestoneNotified()) {
+            return;
+        }
+        state.setLastLikeMilestoneNotified(milestone);
+        state.setUpdatedAt(Instant.now());
+        milestoneStateRepository.save(state);
+        notifyLikeMilestone(thought, milestone);
+    }
+
+    private void checkCommentMilestone(Thought thought, int commentCount) {
+        ThoughtEngagementMilestoneState state = getOrCreateMilestoneState(thought.getId());
+        int milestone = highestMilestoneReached(commentCount, COMMENT_MILESTONE_STEPS);
+        if (milestone <= state.getLastCommentMilestoneNotified()) {
+            return;
+        }
+        state.setLastCommentMilestoneNotified(milestone);
+        state.setUpdatedAt(Instant.now());
+        milestoneStateRepository.save(state);
+        notifyCommentMilestone(thought, milestone);
+    }
+
+    /** Atomic upsert — plain find-then-build-then-save races under concurrent
+     *  likes/comments on the same thought and creates duplicate state docs,
+     *  which then makes every future findByThoughtId() throw
+     *  IncorrectResultSizeDataAccessException ("returned non unique result"). */
+    private ThoughtEngagementMilestoneState getOrCreateMilestoneState(String thoughtId) {
+        Query query = new Query(Criteria.where("thoughtId").is(thoughtId));
+        Update update = new Update()
+                .setOnInsert("thoughtId", thoughtId)
+                .setOnInsert("lastLikeMilestoneNotified", 0)
+                .setOnInsert("lastCommentMilestoneNotified", 0);
+        return mongoTemplate.findAndModify(
+                query, update,
+                FindAndModifyOptions.options().upsert(true).returnNew(true),
+                ThoughtEngagementMilestoneState.class);
     }
 
     /** Called on view — increments counter by 1 and recomputes. Callers should debounce. */
@@ -172,21 +232,94 @@ public class ThoughtEngagementService {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Engagement milestone helpers (docs/engagement)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the highest step in {@code steps} that {@code count} has reached,
+     * or 0 if none. Once past the last step, repeats at that step's size
+     * (e.g. steps ending in 100 -> 200, 300...). Returning a single highest
+     * value (not a list) ensures a count that jumps two steps at once
+     * (e.g. a batch of likes) only ever fires one notification.
+     */
+    private int highestMilestoneReached(long count, int[] steps) {
+        int highest = 0;
+        for (int step : steps) {
+            if (count >= step) {
+                highest = step;
+            }
+        }
+        int lastStep = steps[steps.length - 1];
+        if (count > lastStep) {
+            highest = lastStep + (int) (((count - lastStep) / lastStep) * lastStep);
+        }
+        return highest;
+    }
+
+    private void notifyLikeMilestone(Thought thought, int milestone) {
+        try {
+            Map<String, String> data = new HashMap<>();
+            data.put("type", "THOUGHT_LIKE_MILESTONE");
+            data.put("postId", thought.getId());
+            data.put("deepLink", "app://feed/post/" + thought.getId());
+
+            notificationService.createNotification(
+                    thought.getUserId(),
+                    "🔥 " + milestone + " Likes!",
+                    "Your thought \"" + thought.getHeading() + "\" just hit " + milestone + " likes. Keep it up!",
+                    NotificationType.FEED,
+                    data
+            );
+        } catch (Exception e) {
+            log.error("[ThoughtEngagement] Failed to send like milestone notification for thought {}: {}",
+                    thought.getId(), e.getMessage());
+        }
+    }
+
+    private void notifyCommentMilestone(Thought thought, int milestone) {
+        try {
+            Map<String, String> data = new HashMap<>();
+            data.put("type", "THOUGHT_COMMENT_MILESTONE");
+            data.put("postId", thought.getId());
+            data.put("deepLink", "app://feed/post/" + thought.getId());
+
+            notificationService.createNotification(
+                    thought.getUserId(),
+                    "💬 " + milestone + " Comments!",
+                    "Your thought \"" + thought.getHeading() + "\" is sparking conversation — " + milestone + " comments and counting.",
+                    NotificationType.FEED,
+                    data
+            );
+        } catch (Exception e) {
+            log.error("[ThoughtEngagement] Failed to send comment milestone notification for thought {}: {}",
+                    thought.getId(), e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // Private helpers
     // ──────────────────────────────────────────────────────────────────────────
 
+    /** Atomic upsert for the same reason as getOrCreateMilestoneState() above —
+     *  onLikeChanged/onCommentChanged/onView run @Async, so a plain
+     *  find-then-build-then-save on concurrent events for the same thought
+     *  can create duplicate score docs and break the unique thoughtId lookup. */
     private ThoughtEngagementScore getOrCreate(Thought thought) {
-        return scoreRepository.findByThoughtId(thought.getId()).orElseGet(() ->
-            ThoughtEngagementScore.builder()
-                .thoughtId(thought.getId())
-                .collegeId(thought.getCollegeId())
-                .authorUserId(thought.getUserId())
-                .thoughtCreatedAt(thought.getCreatedAt())
-                .likeCount(thought.getLikes() == null ? 0 : thought.getLikes().size())
-                .commentCount(thought.getComments() == null ? 0 : thought.getComments().size())
-                .viewCount(0)
-                .build()
-        );
+        Query query = new Query(Criteria.where("thoughtId").is(thought.getId()));
+        Update update = new Update()
+                .setOnInsert("thoughtId", thought.getId())
+                .setOnInsert("collegeId", thought.getCollegeId())
+                .setOnInsert("authorUserId", thought.getUserId())
+                .setOnInsert("thoughtCreatedAt", thought.getCreatedAt())
+                .setOnInsert("likeCount", thought.getLikes() == null ? 0 : thought.getLikes().size())
+                .setOnInsert("commentCount", thought.getComments() == null ? 0 : thought.getComments().size())
+                .setOnInsert("viewCount", 0)
+                .setOnInsert("engagementScore", 0.0)
+                .setOnInsert("lastComputedAt", Instant.now());
+        return mongoTemplate.findAndModify(
+                query, update,
+                FindAndModifyOptions.options().upsert(true).returnNew(true),
+                ThoughtEngagementScore.class);
     }
 
     /**

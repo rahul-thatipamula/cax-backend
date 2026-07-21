@@ -188,7 +188,7 @@ public class NotificationService {
         boolean notificationsEnabled = true;
         boolean pushNotificationsEnabled = true;
 
-        Optional<UserSettings> settingsOpt = settingsRepository.findByUserId(userId);
+        Optional<UserSettings> settingsOpt = settingsRepository.findAllByUserId(userId).stream().findFirst();
         if (settingsOpt.isPresent()) {
             UserSettings settings = settingsOpt.get();
             notificationsEnabled = settings.isNotificationsEnabled();
@@ -251,7 +251,7 @@ public class NotificationService {
             return;
         }
 
-        Optional<UserSettings> settingsOpt = settingsRepository.findByUserId(userId);
+        Optional<UserSettings> settingsOpt = settingsRepository.findAllByUserId(userId).stream().findFirst();
         if (settingsOpt.isPresent()) {
             UserSettings settings = settingsOpt.get();
             if (!settings.isNotificationsEnabled() || !settings.isPushNotificationsEnabled()) {
@@ -282,12 +282,20 @@ public class NotificationService {
 
     @Async("taskExecutor")
     public void sendNotificationToAll(String title, String body, NotificationType type, Map<String, String> data) {
+        sendNotificationToAll(title, body, type, data, null);
+    }
+
+    @Async("taskExecutor")
+    public void sendNotificationToAll(String title, String body, NotificationType type, Map<String, String> data, String excludeUserId) {
         java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
         java.util.concurrent.atomic.AtomicInteger failCount = new java.util.concurrent.atomic.AtomicInteger(0);
         List<com.cax.cax_backend.user.model.User> users = userRepository.findAll();
 
         users.forEach(user -> {
             try {
+                if (excludeUserId != null && excludeUserId.equals(user.getUserId())) {
+                    return;
+                }
                 if (!user.isBlocked()) {
                     Notification notif = createNotification(user.getUserId(), title, body, type, data);
                     if (notif != null) {
@@ -306,32 +314,40 @@ public class NotificationService {
 
     @Async("taskExecutor")
     public void sendNotificationToCollege(String collegeId, String title, String body, NotificationType type, Map<String, String> data) {
+        sendNotificationToCollege(collegeId, title, body, type, data, null);
+    }
+
+    /**
+     * Fan-out a notification to every student of a single college, skipping {@code excludeUserId}
+     * (typically the author, so they aren't disturbed by their own post).
+     */
+    @Async("taskExecutor")
+    public void sendNotificationToCollege(String collegeId, String title, String body, NotificationType type, Map<String, String> data, String excludeUserId) {
         java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
         java.util.concurrent.atomic.AtomicInteger failCount = new java.util.concurrent.atomic.AtomicInteger(0);
-        List<com.cax.cax_backend.user.model.User> users = userRepository.findAll();
-        int matchingTargets = 0;
+        List<com.cax.cax_backend.user.model.User> users = userRepository.findByCollegeDetails_CollegeId(collegeId);
 
         for (com.cax.cax_backend.user.model.User user : users) {
-            if (user.getCollegeDetails() != null && collegeId.equals(user.getCollegeDetails().getCollegeId())) {
-                matchingTargets++;
-                try {
-                    if (!user.isBlocked()) {
-                        Notification notif = createNotification(user.getUserId(), title, body, type, data);
-                        if (notif != null) {
-                            successCount.incrementAndGet();
-                        } else {
-                            failCount.incrementAndGet();
-                        }
+            if (excludeUserId != null && excludeUserId.equals(user.getUserId())) {
+                continue;
+            }
+            try {
+                if (!user.isBlocked()) {
+                    Notification notif = createNotification(user.getUserId(), title, body, type, data);
+                    if (notif != null) {
+                        successCount.incrementAndGet();
                     } else {
                         failCount.incrementAndGet();
                     }
-                } catch (Exception e) {
+                } else {
                     failCount.incrementAndGet();
-                    log.error("Failed to send notification to college user: {}, error: {}", user.getUserId(), e.getMessage());
                 }
+            } catch (Exception e) {
+                failCount.incrementAndGet();
+                log.error("Failed to send notification to college user: {}, error: {}", user.getUserId(), e.getMessage());
             }
         }
-        log.info("Broadcast Notification to College {} complete. Matching targets: {}, Successes: {}, Failures/Skipped: {}", collegeId, matchingTargets, successCount.get(), failCount.get());
+        log.info("Broadcast Notification to College {} complete. Matching targets: {}, Successes: {}, Failures/Skipped: {}", collegeId, users.size(), successCount.get(), failCount.get());
     }
 
     public void sendPushNotification(String userId, String fcmToken, String title, String body, Map<String, String> data) {

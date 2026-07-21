@@ -9,10 +9,12 @@ import com.cax.cax_backend.organization.repository.OrganizationRepository;
 import com.cax.cax_backend.common.enums.UserRole;
 import com.cax.cax_backend.common.exception.BusinessException;
 import com.cax.cax_backend.common.service.R2StorageService;
+import com.cax.cax_backend.organization.event.OrganizationPostCreatedEvent;
 import com.cax.cax_backend.user.model.User;
 import com.cax.cax_backend.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -31,6 +33,7 @@ public class OrganizationPostService {
     private final OrganizationMemberRepository organizationMemberRepository;
     private final UserService userService;
     private final R2StorageService r2StorageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OrganizationPost createPost(String userId, String organizationId, String caption, List<String> images, boolean isPoll, String pollQuestion, List<String> pollOptions) {
         Organization club = organizationRepository.findById(organizationId)
@@ -69,7 +72,22 @@ public class OrganizationPostService {
                 .createdAt(Instant.now())
                 .build();
 
-        return organizationPostRepository.save(post);
+        OrganizationPost saved = organizationPostRepository.save(post);
+        eventPublisher.publishEvent(new OrganizationPostCreatedEvent(this, saved));
+        return saved;
+    }
+
+    public OrganizationPost getPostById(String userId, String postId) {
+        OrganizationPost post = organizationPostRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException.ResourceNotFoundException("OrganizationPost", postId));
+
+        if (post.isDeleted()) {
+            throw new BusinessException.ResourceNotFoundException("OrganizationPost", postId);
+        }
+
+        verifyUserCollegeMatchesOrganization(userId, post.getOrganizationId());
+
+        return post;
     }
 
     public OrganizationPost votePoll(String userId, String postId, String optionId) {

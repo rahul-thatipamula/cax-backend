@@ -46,4 +46,7 @@ public interface ThoughtRepository extends MongoRepository<Thought, String> {
 
     @Query(value = "{ 'userId': ?0, 'disabled': { $ne: true }, 'deleted': { $ne: true }, 'createdAt': { $gt: ?1 } }", count = true)
     long countActiveByUserSince(String userId, Instant since);
+
+    @Query(value = "{ 'userId': ?0, 'deleted': { $ne: true } }", count = true)
+    long countActiveByUserId(String userId);
 }

@@ -132,6 +132,18 @@ public class OrganizationPostController {
         return ResponseEntity.ok(ApiResponse.success(clubPostService.getOrganizationPosts(organizationId)));
     }
 
+    @GetMapping("/posts/{postId}")
+    public ResponseEntity<ApiResponse<OrganizationPost>> getPostById(
+            Authentication auth,
+            @PathVariable String postId) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
+            throw new com.cax.cax_backend.common.exception.AuthException.UnauthorizedException("User is not authenticated");
+        }
+        String userId = (String) auth.getPrincipal();
+        OrganizationPost post = clubPostService.getPostById(userId, postId);
+        return ResponseEntity.ok(ApiResponse.success(post));
+    }
+
     @PostMapping("/{organizationId}/posts")
     public ResponseEntity<ApiResponse<OrganizationPost>> createPost(
             Authentication auth,

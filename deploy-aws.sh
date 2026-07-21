@@ -8,7 +8,7 @@ if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
 
-VM_HOST="${DEPLOY_VM_HOST:-ec2-100-31-76-116.compute-1.amazonaws.com}"
+VM_HOST="${DEPLOY_VM_HOST:-ec2-54-89-94-60.compute-1.amazonaws.com}"
 VM_USER="${DEPLOY_VM_USER:-ubuntu}"
 KEY_PATH="${DEPLOY_KEY_PATH:-$HOME/.ssh/amazon-vm-key-pair.pem}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/opt/myapp}"
