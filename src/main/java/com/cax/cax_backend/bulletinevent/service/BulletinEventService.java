@@ -1,22 +1,27 @@
 package com.cax.cax_backend.bulletinevent.service;
 
+import com.cax.cax_backend.bulletinevent.event.BulletinEventCreatedEvent;
 import com.cax.cax_backend.bulletinevent.model.BulletinEvent;
 import com.cax.cax_backend.bulletinevent.model.BulletinEventScore;
 import com.cax.cax_backend.bulletinevent.repository.BulletinEventRepository;
 import com.cax.cax_backend.bulletinevent.repository.BulletinEventScoreRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BulletinEventService {
 
     private final BulletinEventRepository bulletinEventRepository;
     private final BulletinEventScoreRepository bulletinEventScoreRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Admin: all non-deleted bulletins (active + inactive). */
     public List<BulletinEvent> getAllBulletinEvents() {
@@ -87,6 +92,13 @@ public class BulletinEventService {
         bulletinEvent.setDeleted(false);
         BulletinEvent saved = bulletinEventRepository.save(bulletinEvent);
         initializeScore(saved.getId());
+
+        try {
+            eventPublisher.publishEvent(new BulletinEventCreatedEvent(this, saved));
+        } catch (Exception e) {
+            log.error("Failed to publish BulletinEventCreatedEvent for bulletin event: {}", saved.getId(), e);
+        }
+
         return saved;
     }
 

@@ -175,6 +175,11 @@ public class NotificationService {
     }
 
     public Notification createNotification(String userId, String title, String body, NotificationType type, Map<String, String> data, String imageUrl) {
+        Map<String, String> enrichedData = new HashMap<>();
+        if (data != null) {
+            enrichedData.putAll(data);
+        }
+
         // Check if user is blocked or verification has expired
         Optional<com.cax.cax_backend.user.model.User> userOpt = userRepository.findByUserId(userId);
         if (userOpt.isPresent()) {
@@ -183,6 +188,10 @@ public class NotificationService {
                 log.debug("User {} is blocked. Skipping notification creation.", userId);
                 return null;
             }
+            // Inject recipient user engagement score & coins into data map
+            enrichedData.putIfAbsent("userCoins", String.valueOf(user.getCoins()));
+            enrichedData.putIfAbsent("userTotalCoinsEarned", String.valueOf(user.getTotalCoinsEarned()));
+            enrichedData.putIfAbsent("userEngagementScore", String.valueOf(user.getTotalCoinsEarned()));
         }
 
         boolean notificationsEnabled = true;
@@ -205,7 +214,7 @@ public class NotificationService {
                 .title(title)
                 .body(body)
                 .type(type)
-                .data(data)
+                .data(enrichedData)
                 .imageUrl(imageUrl)
                 .build());
 
@@ -213,10 +222,7 @@ public class NotificationService {
         if (pushNotificationsEnabled) {
             userRepository.findByUserId(userId).ifPresent(user -> {
                 if (user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
-                    Map<String, String> pushData = new HashMap<>();
-                    if (data != null) {
-                        pushData.putAll(data);
-                    }
+                    Map<String, String> pushData = new HashMap<>(enrichedData);
                     if (imageUrl != null) {
                         pushData.put("imageUrl", imageUrl);
                     }
@@ -348,6 +354,54 @@ public class NotificationService {
             }
         }
         log.info("Broadcast Notification to College {} complete. Matching targets: {}, Successes: {}, Failures/Skipped: {}", collegeId, users.size(), successCount.get(), failCount.get());
+    }
+
+    @Async("taskExecutor")
+    public void sendNotificationToColleges(List<String> collegeIds, String title, String body, NotificationType type, Map<String, String> data) {
+        sendNotificationToColleges(collegeIds, title, body, type, data, null);
+    }
+
+    /**
+     * Fan-out a notification to students across multiple target colleges without duplicate sends.
+     */
+    @Async("taskExecutor")
+    public void sendNotificationToColleges(List<String> collegeIds, String title, String body, NotificationType type, Map<String, String> data, String excludeUserId) {
+        if (collegeIds == null || collegeIds.isEmpty()) {
+            log.info("No target colleges provided for broadcast notification.");
+            return;
+        }
+
+        java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger failCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        java.util.Set<com.cax.cax_backend.user.model.User> targetUsers = new java.util.HashSet<>();
+        for (String cid : collegeIds) {
+            if (cid != null && !cid.isBlank()) {
+                targetUsers.addAll(userRepository.findByCollegeDetails_CollegeId(cid));
+            }
+        }
+
+        for (com.cax.cax_backend.user.model.User user : targetUsers) {
+            if (excludeUserId != null && excludeUserId.equals(user.getUserId())) {
+                continue;
+            }
+            try {
+                if (!user.isBlocked()) {
+                    Notification notif = createNotification(user.getUserId(), title, body, type, data);
+                    if (notif != null) {
+                        successCount.incrementAndGet();
+                    } else {
+                        failCount.incrementAndGet();
+                    }
+                } else {
+                    failCount.incrementAndGet();
+                }
+            } catch (Exception e) {
+                failCount.incrementAndGet();
+                log.error("Failed to send notification to multi-college user: {}, error: {}", user.getUserId(), e.getMessage());
+            }
+        }
+        log.info("Broadcast Notification to Colleges {} complete. Target count: {}, Successes: {}, Failures/Skipped: {}", collegeIds, targetUsers.size(), successCount.get(), failCount.get());
     }
 
     public void sendPushNotification(String userId, String fcmToken, String title, String body, Map<String, String> data) {

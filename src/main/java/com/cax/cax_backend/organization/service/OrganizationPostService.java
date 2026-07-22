@@ -34,6 +34,7 @@ public class OrganizationPostService {
     private final UserService userService;
     private final R2StorageService r2StorageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final OrganizationPostEngagementService organizationPostEngagementService;
 
     public OrganizationPost createPost(String userId, String organizationId, String caption, List<String> images, boolean isPoll, String pollQuestion, List<String> pollOptions) {
         Organization club = organizationRepository.findById(organizationId)
@@ -190,7 +191,12 @@ public class OrganizationPostService {
         }
         post.setLikes(likes);
         post.setUpdatedAt(Instant.now());
-        return organizationPostRepository.save(post);
+        OrganizationPost saved = organizationPostRepository.save(post);
+
+        // Celebrate a like milestone with the whole org (async, best-effort).
+        // Runs on both like and unlike; the monotonic gate ignores unlike dips.
+        organizationPostEngagementService.onLikeChanged(saved);
+        return saved;
     }
 
     public OrganizationPost addComment(String userId, String postId, String text) {
@@ -221,7 +227,11 @@ public class OrganizationPostService {
         comments.add(comment);
         post.setComments(comments);
         post.setUpdatedAt(Instant.now());
-        return organizationPostRepository.save(post);
+        OrganizationPost saved = organizationPostRepository.save(post);
+
+        // Celebrate a comment milestone with the whole org (async, best-effort).
+        organizationPostEngagementService.onCommentChanged(saved);
+        return saved;
     }
 
     public OrganizationPost deleteComment(String userId, String postId, String commentId) {

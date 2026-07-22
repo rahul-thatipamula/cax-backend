@@ -756,3 +756,159 @@ Minor UI polish and stability improvements., storeUrl=https://play.google.com/st
 [2026-07-21 22:04:32] ADMIN: 113980311909370790584 | ACTION: List Bulletin Event Submissions | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
 [2026-07-21 22:04:36] ADMIN: 113980311909370790584 | ACTION: List All Bulletin Events | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
 [2026-07-21 22:04:36] ADMIN: 113980311909370790584 | ACTION: List All Bulletin Events | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-21 23:38:42] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-21 23:38:43] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-21 23:38:43] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-21 23:38:43] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-21 23:38:43] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-21 23:38:44] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 00:51:25] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 00:51:25] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 00:51:25] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 00:51:25] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 00:51:25] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 00:51:26] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 00:51:32] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 00:51:58] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=22.0.0, minRequiredVersion=22.0.0, latestBuildNumber=81, minRequiredBuildNumber=81, updateMessage=What's new in v22.0.0
+
+• New Arcade Hub with multiplayer games — Who Said It, Most Likely To & Imposter — with real-time sync and winner celebrations
+• Attendance tracker
+• Bookmark your favourite Thoughts and Campus posts
+• Redesigned Thoughts feed, organization profiles and public profiles, plus a new Members screen
+• Rate & recommend CAX right from Settings
+• Faster, smoother app startup
+• Home layout improvements and bug fixes
+
+Thanks for using CAX!, storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-07-22 08:24:24] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 08:24:24] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 08:24:25] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 08:24:25] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 08:24:25] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 08:24:25] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 08:24:35] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:03:57] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:03:57] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:03:57] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:03:57] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:03:57] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:03:57] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:04:14] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:04:14] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:14:00] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:14:01] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:14:01] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:14:01] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:14:01] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:14:01] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:33:04] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:33:04] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:35:13] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:35:13] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:35:14] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:35:14] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:35:14] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:35:14] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:45:54] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:45:54] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:45:54] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:45:54] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:45:54] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:45:54] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:47:41] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:47:41] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:47:41] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:47:41] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:47:41] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 09:47:41] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:25:47] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:25:47] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:25:48] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:25:48] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:25:48] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:25:48] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:39:04] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:39:04] ADMIN: 113980311909370790584 | ACTION: List All Bug Reports | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:39:04] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 13:39:04] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 14:49:31] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 14:49:32] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 14:49:32] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 14:49:32] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 14:49:32] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 14:49:32] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:50:13] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:50:14] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:50:14] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:50:14] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:50:14] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:50:14] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:50:32] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=22.0.0, minRequiredVersion=22.0.0, latestBuildNumber=81, minRequiredBuildNumber=81, updateMessage=What's New in CAX: V22.1.0
+
+- Thought Sharing & Deep Links: Share thoughts with title previews and short excerpts that open seamlessly inside CAX.
+- Arcade Games Updates: Real-time multiplayer game synchronization, refined game interface, and new victory screens.
+- Organization Profiles: Redesigned organization profiles, faster app startup, and integrated review prompts.
+- Performance & Fixes: General stability improvements and bug fixes., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-07-22 16:50:39] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:50:40] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:57:14] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 16:57:16] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=22.0.0, minRequiredVersion=22.0.0, latestBuildNumber=81, minRequiredBuildNumber=81, updateMessage=What's New in CAX: V22.1.0
+
+- Thought Sharing & Deep Links: Share thoughts with title previews and short excerpts that open seamlessly inside CAX.
+- Arcade Games Updates: Real-time multiplayer game synchronization, refined game interface, and new victory screens.
+- Organization Profiles: Redesigned organization profiles, faster app startup, and integrated review prompts.
+- Performance & Fixes: General stability improvements and bug fixes., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-07-22 16:57:34] ADMIN: 113980311909370790584 | ACTION: Update App Version Settings | RESOURCE: N/A | DETAILS: VersionSettingsRequest(latestVersion=22.1.0, minRequiredVersion=22.0.0, latestBuildNumber=82, minRequiredBuildNumber=81, updateMessage=What's New in CAX: V22.1.0
+
+- Thought Sharing & Deep Links: Share thoughts with title previews and short excerpts that open seamlessly inside CAX.
+- Arcade Games Updates: Real-time multiplayer game synchronization, refined game interface, and new victory screens.
+- Organization Profiles: Redesigned organization profiles, faster app startup, and integrated review prompts.
+- Performance & Fixes: General stability improvements and bug fixes., storeUrl=https://play.google.com/store/apps/details?id=com.axiviontech.cax) | STATUS: SUCCESS
+[2026-07-22 17:32:00] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:32:01] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:32:01] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:32:03] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:32:03] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:32:05] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:46:59] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:47:01] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:47:04] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:47:04] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:47:04] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:47:04] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 17:47:12] ADMIN: 113980311909370790584 | ACTION: Toggle Play Store Testing Mode | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:29:47] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:29:47] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:29:47] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:29:47] ADMIN: 113980311909370790584 | ACTION: List All Ads | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:29:47] ADMIN: 113980311909370790584 | ACTION: View Bug Report Stats | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:29:47] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:30:30] ADMIN: 113980311909370790584 | ACTION: List All Bulletin Events | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:30:30] ADMIN: 113980311909370790584 | ACTION: List All Bulletin Events | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:36:56] ADMIN: 113980311909370790584 | ACTION: Create Bulletin Event | RESOURCE: N/A | DETAILS: BulletinEvent(id=null, title=Adobe University Hackathon 2026, description=The Adobe University Hackathon 2026 is a national-level innovation competition hosted by Adobe on Unstop, open to engineering students across all years and branches. It's designed to simulate real-world engineering challenges and puts your skills in AI, full-stack development, DSA, problem-solving, and product design to the test — with a shot at direct visibility before Adobe's engineering leadership.
+
+Team Rules
+
+Teams of 2–3 members
+All members must be from the same college/university
+Cross-year and cross-specialization teams are allowed; cross-college teams are not
+Each participant may be part of only one team
+Register using your official university email (Gmail accepted if unavailable) and a valid WhatsApp number
+
+Competition Format — 4 Rounds
+
+Online Assessment (90 min, single attempt): 15 MCQs on algorithms/DSA/programming logic, 1 coding question, and 1 brand-visibility case study
+Development Round: Shortlisted teams get the official problem statement and build a complete solution, submitting a GitHub repo with supporting docs
+Prototype Showcase: Top teams build and demo a functional prototype (only the team leader submits)
+Grand Finale: Top teams present to Adobe's leadership at Adobe's Noida HQ — travel and accommodation fully covered
+
+Rewards
+
+Winning team: MacBook Pro each
+Runner-up team: MacBook Neo each
+Top 50 participants: PPIs + Adobe internship opportunity (₹1,10,000/month stipend; PPI eligibility limited to the 2028 graduating batch)
+National finalists: Adobe merchandise + sponsored HQ visit
+Top 50 teams: official Adobe participation certificates, coverImage=https://pub-6d28afd560b0498d9fea3f401d07e798.r2.dev/bulletin-events/113980311909370790584/071ff123-04a4-4bce-97cd-c2e31e338357.png, externalLink=https://unstop.com/hackathons/crp-adobe-university-hackathon-2026-adobe-1715333, eventStartDate=2026-08-09T08:30:00Z, eventEndDate=2026-09-27T18:29:00Z, registrationEndDate=2026-08-08T18:29:00Z, conductedBy=Adobe (hosted via Unstop), global=true, collegeIds=[], active=true, deleted=false, createdAt=null, updatedAt=null, deletedAt=null) | STATUS: SUCCESS
+[2026-07-22 19:36:56] ADMIN: 113980311909370790584 | ACTION: List All Bulletin Events | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:41:12] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
+[2026-07-22 19:41:12] ADMIN: 113980311909370790584 | ACTION: List All Notifications | RESOURCE: N/A | DETAILS: N/A | STATUS: SUCCESS
