@@ -44,11 +44,40 @@ public class PublicBulletinSubmissionController {
     private final TurnstileService turnstileService;
     private final BulletinSubmissionAuditService auditService;
     private final CollegeRepository collegeRepository;
+    private final com.cax.cax_backend.bulletinevent.service.BulletinEventAnalyticsService analyticsService;
 
     @GetMapping("/top")
     public ResponseEntity<ApiResponse<List<BulletinEvent>>> topEvents(
             @RequestParam(required = false, defaultValue = "4") int limit) {
         return ResponseEntity.ok(ApiResponse.success(bulletinEventService.getTopGlobalBulletinEvents(limit)));
+    }
+
+    // ── Interaction Analytics Tracking Endpoints ────────────────────────────
+
+    public record BatchImpressionsRequest(List<String> eventIds, String source) {}
+
+    @PostMapping("/analytics/impressions")
+    public ResponseEntity<ApiResponse<String>> recordImpressions(@RequestBody BatchImpressionsRequest req) {
+        if (req != null && req.eventIds() != null) {
+            analyticsService.recordImpressions(req.eventIds(), req.source() != null ? req.source() : "WEB");
+        }
+        return ResponseEntity.ok(ApiResponse.success("Impressions recorded"));
+    }
+
+    @PostMapping("/analytics/{id}/view")
+    public ResponseEntity<ApiResponse<String>> recordView(
+            @PathVariable String id,
+            @RequestParam(required = false, defaultValue = "WEB") String source) {
+        analyticsService.recordDetailView(id, source);
+        return ResponseEntity.ok(ApiResponse.success("View recorded"));
+    }
+
+    @PostMapping("/analytics/{id}/click")
+    public ResponseEntity<ApiResponse<String>> recordClick(
+            @PathVariable String id,
+            @RequestParam(required = false, defaultValue = "WEB") String source) {
+        analyticsService.recordExternalLinkClick(id, source);
+        return ResponseEntity.ok(ApiResponse.success("Click recorded"));
     }
 
     /** College picker for the public form. Deliberately returns only id/name/code — the full

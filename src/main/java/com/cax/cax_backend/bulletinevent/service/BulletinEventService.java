@@ -21,6 +21,7 @@ public class BulletinEventService {
 
     private final BulletinEventRepository bulletinEventRepository;
     private final BulletinEventScoreRepository bulletinEventScoreRepository;
+    private final BulletinEventAnalyticsService bulletinEventAnalyticsService;
     private final ApplicationEventPublisher eventPublisher;
 
     /** Admin: all non-deleted bulletins (active + inactive). */
@@ -56,12 +57,12 @@ public class BulletinEventService {
         return bulletinEventRepository.findById(id);
     }
 
-    /** Public-facing (caxone.in/postEvent): most recent live global bulletins, capped at {@code limit}. */
+    /** Public-facing (caxone.in/postEvent): top live global bulletins ranked by mathematical engagement score. */
     public List<BulletinEvent> getTopGlobalBulletinEvents(int limit) {
         int cappedLimit = Math.max(1, Math.min(limit, 10));
         return bulletinEventRepository.findActiveGlobal().stream()
-                .sorted(java.util.Comparator.comparing(BulletinEvent::getCreatedAt,
-                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .sorted(java.util.Comparator.comparingDouble((BulletinEvent event) ->
+                        bulletinEventAnalyticsService.recalculateScoreForEvent(event.getId())).reversed())
                 .limit(cappedLimit)
                 .collect(java.util.stream.Collectors.toList());
     }
@@ -92,6 +93,7 @@ public class BulletinEventService {
         bulletinEvent.setDeleted(false);
         BulletinEvent saved = bulletinEventRepository.save(bulletinEvent);
         initializeScore(saved.getId());
+        bulletinEventAnalyticsService.initializeAnalytics(saved.getId());
 
         try {
             eventPublisher.publishEvent(new BulletinEventCreatedEvent(this, saved));
