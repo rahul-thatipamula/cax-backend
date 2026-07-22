@@ -29,28 +29,36 @@ public class BulletinEventService {
         return bulletinEventRepository.findAllNotDeleted();
     }
 
+    private List<BulletinEvent> sortEventsByEngagementScore(List<BulletinEvent> events) {
+        if (events == null || events.isEmpty()) return List.of();
+        return events.stream()
+                .sorted(java.util.Comparator.comparingDouble((BulletinEvent event) ->
+                        bulletinEventAnalyticsService.recalculateScoreForEvent(event.getId())).reversed())
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     /** Student-facing: only active, non-deleted, scoped to college or global. */
     public List<BulletinEvent> getBulletinEventsForUser(String collegeId) {
         String cid = (collegeId == null || collegeId.isBlank()) ? "" : collegeId;
-        return bulletinEventRepository.findActiveByGlobalOrCollegeId(cid);
+        return sortEventsByEngagementScore(bulletinEventRepository.findActiveByGlobalOrCollegeId(cid));
     }
 
     /** Student-facing: active bulletins starting after now, scoped to college or global. */
     public List<BulletinEvent> getUpcomingBulletinEvents(String collegeId, Instant now) {
         String cid = (collegeId == null || collegeId.isBlank()) ? "" : collegeId;
-        return bulletinEventRepository.findUpcoming(cid, now);
+        return sortEventsByEngagementScore(bulletinEventRepository.findUpcoming(cid, now));
     }
 
     /** Student-facing: active bulletins currently in progress, scoped to college or global. */
     public List<BulletinEvent> getOngoingBulletinEvents(String collegeId, Instant now) {
         String cid = (collegeId == null || collegeId.isBlank()) ? "" : collegeId;
-        return bulletinEventRepository.findOngoing(cid, now);
+        return sortEventsByEngagementScore(bulletinEventRepository.findOngoing(cid, now));
     }
 
     /** Student-facing: active bulletins that have already ended, scoped to college or global. */
     public List<BulletinEvent> getCompletedBulletinEvents(String collegeId, Instant now) {
         String cid = (collegeId == null || collegeId.isBlank()) ? "" : collegeId;
-        return bulletinEventRepository.findCompleted(cid, now);
+        return sortEventsByEngagementScore(bulletinEventRepository.findCompleted(cid, now));
     }
 
     public Optional<BulletinEvent> getBulletinEventById(String id) {

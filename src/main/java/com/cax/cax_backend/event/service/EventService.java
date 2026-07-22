@@ -59,6 +59,8 @@ public class EventService {
     private final RazorpayService razorpayService;
     private final SystemSettingService systemSettingService;
     private final com.cax.cax_backend.bulletinevent.service.BulletinEventService bulletinEventService;
+    private final com.cax.cax_backend.bulletinevent.service.BulletinEventAnalyticsService bulletinEventAnalyticsService;
+    private final EventAnalyticsService eventAnalyticsService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final EventScoreService eventScoreService;
 
@@ -604,20 +606,30 @@ public class EventService {
         }
         populateJoinedCount(events);
 
-        // College-level events are always shown first (their own tier, soonest-first);
-        // global events and bulletins are mixed together after, also soonest-first.
+        // Tier 1: Internal College-level events shown first, sorted by internal engagement score descending;
+        // Tier 2: Global events and bulletin events mixed together, sorted by global/bulletin engagement score descending.
         List<Map<String, Object>> collegeTier = new java.util.ArrayList<>();
         List<Map<String, Object>> globalTier = new java.util.ArrayList<>();
+
         for (Event event : events) {
-            (event.isGlobal() ? globalTier : collegeTier).add(toTaggedMap(event, "EVENT"));
+            Map<String, Object> tagged = toTaggedMap(event, "EVENT");
+            double score = eventAnalyticsService.calculateEventEngagementScore(event);
+            tagged.put("_score", score);
+            (event.isGlobal() ? globalTier : collegeTier).add(tagged);
         }
         for (com.cax.cax_backend.bulletinevent.model.BulletinEvent bulletin : bulletins) {
-            globalTier.add(toTaggedMap(bulletin, "BULLETIN"));
+            Map<String, Object> tagged = toTaggedMap(bulletin, "BULLETIN");
+            double score = bulletinEventAnalyticsService.recalculateScoreForEvent(bulletin.getId());
+            tagged.put("_score", score);
+            globalTier.add(tagged);
         }
-        java.util.Comparator<Map<String, Object>> byStartDate = java.util.Comparator.comparing(
-                m -> (String) ((Map<String, Object>) m.get("data")).get("eventStartDate"));
-        collegeTier.sort(byStartDate);
-        globalTier.sort(byStartDate);
+
+        java.util.Comparator<Map<String, Object>> byEngagementScore = java.util.Comparator.comparingDouble(
+                m -> ((Number) m.getOrDefault("_score", 0.0)).doubleValue());
+        byEngagementScore = byEngagementScore.reversed();
+
+        collegeTier.sort(byEngagementScore);
+        globalTier.sort(byEngagementScore);
 
         List<Map<String, Object>> tagged = new java.util.ArrayList<>(collegeTier);
         tagged.addAll(globalTier);
