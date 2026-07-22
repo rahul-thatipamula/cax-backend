@@ -211,6 +211,11 @@ public class EventService {
 
         // Ranking score starts at 0, or inherits a decayed share of this organization's best past events.
         eventScoreService.initializeScore(saved.getId(), organizationId, saved.getEventEndDate());
+        try {
+            eventAnalyticsService.initializeAnalytics(saved);
+        } catch (Exception e) {
+            log.error("Failed to initialize event analytics for event {}: {}", saved.getId(), e.getMessage());
+        }
 
         // Resolve collaboratorIds supplied at creation time
         if (eventData.getCollaboratorIds() != null && !eventData.getCollaboratorIds().isEmpty()) {
@@ -970,6 +975,14 @@ public class EventService {
         participant.setStatus(approved ? "VERIFIED" : "REJECTED");
         participant.setVerifiedByUserId(organizerId);
         participant.setVerifiedAt(Instant.now());
+
+        if (approved) {
+            try {
+                eventAnalyticsService.recordEventJoin(event.getId());
+            } catch (Exception e) {
+                log.error("Failed to record event join analytics for event {}: {}", event.getId(), e.getMessage());
+            }
+        }
 
         // Capture verifier identity for manage-screen traceability
         try {
