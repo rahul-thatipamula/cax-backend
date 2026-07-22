@@ -458,6 +458,15 @@ public class EventService {
         // Check participant status
         Optional<EventParticipant> participant = eventParticipantRepository.findFirstByEventIdAndUserId(eventId, userId);
 
+        // Publish internal event view interaction event
+        try {
+            eventPublisher.publishEvent(new com.cax.cax_backend.event.event.EventInteractedEvent(
+                    this, eventId, com.cax.cax_backend.event.event.EventInteractedEvent.InteractionType.VIEW,
+                    event.getCollegeId(), "INTERNAL"));
+        } catch (Exception e) {
+            log.warn("Failed to publish EventInteractedEvent VIEW for event {}", eventId, e);
+        }
+
         // Determine organizer role for this user
         String organizerRole = null;
         if (userId.equals(event.getCreatedByUserId())) {
@@ -978,9 +987,11 @@ public class EventService {
 
         if (approved) {
             try {
-                eventAnalyticsService.recordEventJoin(event.getId());
+                eventPublisher.publishEvent(new com.cax.cax_backend.event.event.EventInteractedEvent(
+                        this, event.getId(), com.cax.cax_backend.event.event.EventInteractedEvent.InteractionType.JOIN,
+                        event.getCollegeId(), "INTERNAL"));
             } catch (Exception e) {
-                log.error("Failed to record event join analytics for event {}: {}", event.getId(), e.getMessage());
+                log.error("Failed to publish EventInteractedEvent JOIN for event {}: {}", event.getId(), e.getMessage());
             }
         }
 

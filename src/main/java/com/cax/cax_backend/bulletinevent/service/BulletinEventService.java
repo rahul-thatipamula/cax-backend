@@ -62,17 +62,38 @@ public class BulletinEventService {
     }
 
     public Optional<BulletinEvent> getBulletinEventById(String id) {
-        return bulletinEventRepository.findById(id);
+        Optional<BulletinEvent> eventOpt = bulletinEventRepository.findById(id);
+        if (eventOpt.isPresent()) {
+            try {
+                eventPublisher.publishEvent(new com.cax.cax_backend.bulletinevent.event.BulletinEventInteractedEvent(
+                        this, id, com.cax.cax_backend.bulletinevent.event.BulletinEventInteractedEvent.InteractionType.VIEW, "INTERNAL"));
+            } catch (Exception e) {
+                log.warn("Failed to publish BulletinEventInteractedEvent VIEW for id {}", id, e);
+            }
+        }
+        return eventOpt;
     }
 
     /** Public-facing (caxone.in/postEvent): top live global bulletins ranked by mathematical engagement score. */
     public List<BulletinEvent> getTopGlobalBulletinEvents(int limit) {
         int cappedLimit = Math.max(1, Math.min(limit, 10));
-        return bulletinEventRepository.findActiveGlobal().stream()
+        List<BulletinEvent> topEvents = bulletinEventRepository.findActiveGlobal().stream()
                 .sorted(java.util.Comparator.comparingDouble((BulletinEvent event) ->
                         bulletinEventAnalyticsService.recalculateScoreForEvent(event.getId())).reversed())
                 .limit(cappedLimit)
                 .collect(java.util.stream.Collectors.toList());
+
+        if (!topEvents.isEmpty()) {
+            try {
+                List<String> ids = topEvents.stream().map(BulletinEvent::getId).toList();
+                eventPublisher.publishEvent(new com.cax.cax_backend.bulletinevent.event.BulletinEventInteractedEvent(
+                        this, ids, com.cax.cax_backend.bulletinevent.event.BulletinEventInteractedEvent.InteractionType.IMPRESSION_BATCH, "WEB"));
+            } catch (Exception e) {
+                log.warn("Failed to publish BulletinEventInteractedEvent IMPRESSION_BATCH", e);
+            }
+        }
+
+        return topEvents;
     }
 
     private void validateDates(BulletinEvent event) {
