@@ -52,34 +52,6 @@ public class PublicBulletinSubmissionController {
         return ResponseEntity.ok(ApiResponse.success(bulletinEventService.getTopGlobalBulletinEvents(limit)));
     }
 
-    // ── Interaction Analytics Tracking Endpoints ────────────────────────────
-
-    public record BatchImpressionsRequest(List<String> eventIds, String source) {}
-
-    @PostMapping("/analytics/impressions")
-    public ResponseEntity<ApiResponse<String>> recordImpressions(@RequestBody BatchImpressionsRequest req) {
-        if (req != null && req.eventIds() != null) {
-            analyticsService.recordImpressions(req.eventIds(), req.source() != null ? req.source() : "WEB");
-        }
-        return ResponseEntity.ok(ApiResponse.success("Impressions recorded"));
-    }
-
-    @PostMapping("/analytics/{id}/view")
-    public ResponseEntity<ApiResponse<String>> recordView(
-            @PathVariable String id,
-            @RequestParam(required = false, defaultValue = "WEB") String source) {
-        analyticsService.recordDetailView(id, source);
-        return ResponseEntity.ok(ApiResponse.success("View recorded"));
-    }
-
-    @PostMapping("/analytics/{id}/click")
-    public ResponseEntity<ApiResponse<String>> recordClick(
-            @PathVariable String id,
-            @RequestParam(required = false, defaultValue = "WEB") String source) {
-        analyticsService.recordExternalLinkClick(id, source);
-        return ResponseEntity.ok(ApiResponse.success("Click recorded"));
-    }
-
     /** College picker for the public form. Deliberately returns only id/name/code — the full
      *  College document carries emailDomains and student counts that an anonymous caller has
      *  no reason to see. Searching/filtering happens client-side over this small list. */

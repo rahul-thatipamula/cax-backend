@@ -430,25 +430,5 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.success(memories));
     }
 
-    // ── Interaction Analytics Tracking Endpoints ────────────────────────────
-
-    @PostMapping("/events/{id}/track-view")
-    public ResponseEntity<ApiResponse<String>> trackEventView(@PathVariable String id) {
-        eventAnalyticsService.recordEventView(id);
-        return ResponseEntity.ok(ApiResponse.success("Event view recorded"));
-    }
-
-    @PostMapping("/events/{id}/track-share")
-    public ResponseEntity<ApiResponse<String>> trackEventShare(@PathVariable String id) {
-        eventAnalyticsService.recordEventShare(id);
-        return ResponseEntity.ok(ApiResponse.success("Event share recorded"));
-    }
-
-    @PostMapping("/events/{id}/track-click")
-    public ResponseEntity<ApiResponse<String>> trackEventClick(@PathVariable String id) {
-        eventAnalyticsService.recordEventClick(id);
-        return ResponseEntity.ok(ApiResponse.success("Event click recorded"));
-    }
-
 }
 
