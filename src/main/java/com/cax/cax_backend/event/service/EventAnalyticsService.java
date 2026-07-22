@@ -163,7 +163,7 @@ public class EventAnalyticsService {
         long joinedCount = analytics.getJoinedCount();
         if (event != null && joinedCount == 0) {
             try {
-                joinedCount = eventParticipantRepository.countByEventIdAndStatus(event.getId(), EventParticipant.ParticipantStatus.JOINED);
+                joinedCount = eventParticipantRepository.countByEventId(event.getId());
                 analytics.setJoinedCount(joinedCount);
             } catch (Exception ignored) {}
         }

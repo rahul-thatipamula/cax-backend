@@ -4,6 +4,7 @@ import com.cax.cax_backend.common.dto.ApiResponse;
 import com.cax.cax_backend.event.model.Event;
 import com.cax.cax_backend.event.model.EventParticipant;
 import com.cax.cax_backend.event.service.EventService;
+import com.cax.cax_backend.event.service.EventAnalyticsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
